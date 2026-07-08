@@ -10,7 +10,8 @@ def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
   if parser is None:
     parser = argparse.ArgumentParser(description='Key press')
 
-  parser.add_argument('-n', '--num', type=int, required=True, help='Number of commands')
+  parser.add_argument('-n', '--num', type=int, default=0, help='Number of commands (interactive input mode)')
+  parser.add_argument('-k', '--keys', type=str, default='', help='Comma-separated key list, e.g. "up,down,left,right"')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times')
   parser.add_argument('-d', '--delay', type=float, default=0, help='Time(seconds) to wait between each command in commands list')
   parser.add_argument('-w', '--wait', type=float, default=0, help='Time(seconds) to wait after executing the commands list once')
@@ -22,8 +23,16 @@ def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
 def ArgCheckKeyPress(args: argparse.Namespace) -> None:
   """参数校验"""
 
-  if args.num <= 0:
+  if args.num < 0:
     raise ValueError('Invalid click command number (-n/--num)')
+  if args.num == 0 and not args.keys:
+    raise ValueError('Either -n/--num or -k/--keys must be provided')
+  if args.num > 0 and args.keys:
+    raise ValueError('-n/--num and -k/--keys are mutually exclusive')
+  if args.keys:
+    for key in args.keys.split(','):
+      if not pyautogui.isValidKey(key):
+        raise ValueError(f'Invalid key: {key}')
   if args.repeat <= 0:
     raise ValueError('Invalid repeat times (-r/--repeat)')
   if args.delay < 0:
@@ -84,7 +93,10 @@ def main():
     args = argParse.parse_args()
     ArgCheckKeyPress(args)
     # 生成按键列表
-    keyList = GetKeyList(args.num)
+    if args.keys:
+      keyList = args.keys.split(',')
+    else:
+      keyList = GetKeyList(args.num)
     # 开始执行按键命令
     RunPress(keyList, args.auto, args.start_delay, args.repeat, args.delay, args.wait)
   except Exception as e:
