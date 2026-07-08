@@ -10,7 +10,8 @@ def ArgParseMouseClickInit(parser):
   parser.add_argument('-n', '--num', type=int, required=True, help='Number of click commands')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times')
   parser.add_argument('-m', '--move', action='store_true', default=False, help='Move mouse to position before clicking')
-  parser.add_argument('-w', '--wait', type=int, default=0, help='Time(seconds) to wait after executing the click commands list once')
+  parser.add_argument('-d', '--delay', type=float, default=0, help='Time(seconds) to wait between each click command')
+  parser.add_argument('-w', '--wait', type=float, default=0, help='Time(seconds) to wait after executing the click commands list once')
 
   return parser
 
@@ -21,6 +22,8 @@ def ArgCheckMouseClick(args):
     raise ValueError('Invalid click command number (-n/--num)')
   if args.repeat <= 0:
     raise ValueError('Invalid repeat times (-r/--repeat)')
+  if args.delay < 0:
+    raise ValueError('Invalid delay time (-d/--delay)')
   if args.wait < 0:
     raise ValueError('Invalid wait time (-w/--wait)')
 
@@ -65,7 +68,7 @@ def GetPositionList(num):
     print(f'Captured position: ({x}, {y})')
   return positionList
 
-def RunClick(clickList, positionList, repeat, wait):
+def RunClick(clickList, positionList, repeat, delay, wait):
   """运行点击命令"""
   import time
 
@@ -82,6 +85,7 @@ def RunClick(clickList, positionList, repeat, wait):
         pyautogui.moveTo(positionList[j][0], positionList[j][1])
       # print(f'Executing click command: {clickList[j]}')
       clickList[j]() # 执行点击命令
+      time.sleep(delay)
     time.sleep(wait)
     print(f'Run {i+1}/{repeat} times')
 
@@ -93,7 +97,7 @@ def main():
     ArgCheckMouseClick(args)
     clickList = GetClickList(args.num) # 生成鼠标操作列表
     positionList = GetPositionList(args.num) if args.move else None # 生成鼠标点击的位置列表
-    RunClick(clickList, positionList, args.repeat, args.wait) # 开始执行点击命令
+    RunClick(clickList, positionList, args.repeat, args.delay, args.wait) # 开始执行点击命令
   except Exception as e:
     print(f'Error: {e}')
 
