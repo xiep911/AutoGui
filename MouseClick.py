@@ -5,12 +5,19 @@
 import argparse
 import pyautogui
 
+CLICK_OPTION = {
+  1: pyautogui.click,
+  2: pyautogui.doubleClick,
+  3: pyautogui.rightClick
+}
+
 def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
   if parser is None:
     parser = argparse.ArgumentParser(description='Click mouse')
 
-  parser.add_argument('-n', '--num', type=int, required=True, help='Number of click commands')
+  parser.add_argument('-n', '--num', type=int, default=0, help='Number of click commands (interactive input mode)')
+  parser.add_argument('-c', '--clicks', type=str, default='', help='Comma-separated click list, e.g. "1,2,3" (1=left, 2=double, 3=right)')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times')
   parser.add_argument('-m', '--move', action='store_true', default=False, help='Move mouse to position before clicking')
   parser.add_argument('-d', '--delay', type=float, default=0, help='Time(seconds) to wait between each click command')
@@ -21,8 +28,16 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
 def ArgCheckMouseClick(args: argparse.Namespace) -> None:
   """参数校验"""
 
-  if args.num <= 0:
+  if args.num < 0:
     raise ValueError('Invalid click command number (-n/--num)')
+  if args.num == 0 and not args.clicks:
+    raise ValueError('Either -n/--num or -c/--clicks must be provided')
+  if args.num > 0 and args.clicks:
+    raise ValueError('-n/--num and -c/--clicks are mutually exclusive')
+  if args.clicks:
+    for c in args.clicks.split(','):
+      if c not in ('1', '2', '3'):
+        raise ValueError(f'Invalid click command: {c}. Must be 1 (left), 2 (double), or 3 (right).')
   if args.repeat <= 0:
     raise ValueError('Invalid repeat times (-r/--repeat)')
   if args.delay < 0:
@@ -38,11 +53,6 @@ def GetClickList(num: int) -> list:
   print('2: click left double')
   print('3: click right')
 
-  clickOption = {
-    1: pyautogui.click,
-    2: pyautogui.doubleClick,
-    3: pyautogui.rightClick
-  }
   clickList = []
 
   for i in range(num):
@@ -50,9 +60,9 @@ def GetClickList(num: int) -> list:
       try:
         print(f'Input your {i+1} click command (1/2/3):')
         click = int(input())
-        if click not in clickOption:
+        if click not in CLICK_OPTION:
           raise ValueError('Invalid click command! Please input 1, 2, or 3.')
-        clickList.append(clickOption[click])
+        clickList.append(CLICK_OPTION[click])
         break
       except ValueError as e:
         print(f'Error: {e}')
@@ -99,9 +109,12 @@ def main():
     args = argParse.parse_args()
     ArgCheckMouseClick(args)
     # 生成鼠标操作列表
-    clickList = GetClickList(args.num)
+    if args.clicks:
+      clickList = [CLICK_OPTION[int(c)] for c in args.clicks.split(',')]
+    else:
+      clickList = GetClickList(args.num)
     # 生成鼠标点击的位置列表
-    positionList = GetPositionList(args.num) if args.move else None
+    positionList = GetPositionList(len(clickList)) if args.move else None
     # 开始执行点击命令
     RunClick(clickList, positionList, args.repeat, args.delay, args.wait)
   except Exception as e:
