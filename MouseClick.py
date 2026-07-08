@@ -1,9 +1,8 @@
+import argparse
 import pyautogui
 
-def ArgParseMouseClickInit(parser):
+def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
-  import argparse
-
   if parser is None:
     parser = argparse.ArgumentParser(description='Click mouse')
 
@@ -15,7 +14,7 @@ def ArgParseMouseClickInit(parser):
 
   return parser
 
-def ArgCheckMouseClick(args):
+def ArgCheckMouseClick(args: argparse.Namespace) -> None:
   """参数校验"""
 
   if args.num <= 0:
@@ -27,7 +26,7 @@ def ArgCheckMouseClick(args):
   if args.wait < 0:
     raise ValueError('Invalid wait time (-w/--wait)')
 
-def GetClickList(num):
+def GetClickList(num: int) -> list:
   """获取点击命令列表"""
 
   print('Select your clock command:')
@@ -56,7 +55,7 @@ def GetClickList(num):
 
   return clickList
 
-def GetPositionList(num):
+def GetPositionList(num: int) -> list:
   """获取点击位置列表"""
 
   positionList = []
@@ -68,7 +67,7 @@ def GetPositionList(num):
     print(f'Captured position: ({x}, {y})')
   return positionList
 
-def RunClick(clickList, positionList, repeat, delay, wait):
+def RunClick(clickList: list, positionList: list | None, repeat: int, delay: float, wait: float) -> None:
   """运行点击命令"""
   import time
 
@@ -83,8 +82,7 @@ def RunClick(clickList, positionList, repeat, delay, wait):
     for j in range(len(clickList)):
       if positionList is not None:
         pyautogui.moveTo(positionList[j][0], positionList[j][1])
-      # print(f'Executing click command: {clickList[j]}')
-      clickList[j]() # 执行点击命令
+      clickList[j]()
       time.sleep(delay)
     time.sleep(wait)
     print(f'Run {i+1}/{repeat} times')
@@ -92,12 +90,16 @@ def RunClick(clickList, positionList, repeat, delay, wait):
 def main():
   """主函数"""
   try:
-    argParse = ArgParseMouseClickInit(None) # 解析参数
+    # 解析参数
+    argParse = ArgParseMouseClickInit(None)
     args = argParse.parse_args()
     ArgCheckMouseClick(args)
-    clickList = GetClickList(args.num) # 生成鼠标操作列表
-    positionList = GetPositionList(args.num) if args.move else None # 生成鼠标点击的位置列表
-    RunClick(clickList, positionList, args.repeat, args.delay, args.wait) # 开始执行点击命令
+    # 生成鼠标操作列表
+    clickList = GetClickList(args.num)
+    # 生成鼠标点击的位置列表
+    positionList = GetPositionList(args.num) if args.move else None
+    # 开始执行点击命令
+    RunClick(clickList, positionList, args.repeat, args.delay, args.wait)
   except Exception as e:
     print(f'Error: {e}')
 
