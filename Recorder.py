@@ -107,8 +107,8 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
                    help='Output recording file, default: recording.json')
   rec.add_argument('-s', '--start-delay', type=float, default=3,
                    help='Time(seconds) to wait before recording starts, default: 3')
-  rec.add_argument('-k', '--stop-key', type=str, default='f9',
-                   help='Key to stop recording (pyautogui key name), default: f9')
+  rec.add_argument('-k', '--stop-key', type=str, default='esc',
+                   help='Key to stop recording (pyautogui key name), default: esc')
 
   rep = sub.add_parser('replay', help='Replay a recorded JSON file')
   rep.add_argument('file', type=str, help='Recording JSON file')
