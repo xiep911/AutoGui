@@ -8,6 +8,11 @@
 pip install -r requirements.txt
 ```
 
+## 代码结构
+
+- `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局停止热键 `StopControl`、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`）
+- `MouseClick.py` / `KeyPress.py` / `Recorder.py` — 脚本主体，从 `Library.Base` 导入公共部分
+
 ## 鼠标点击 — MouseClick.py
 
 录制鼠标点击位置和操作类型，批量重复执行。
@@ -92,6 +97,80 @@ python KeyPress.py -k "up,down,left,right" -r 5 -a -s 3 -d 0.5
 ```bash
 python KeyPress.py -n 3 -r 2
 ```
+
+## 录制回放 — Recorder.py
+
+真实录制鼠标操作和键盘按键，自动采集每步的真实延时，再按录制节奏重放。与上面两个脚本的区别：操作和延时都从用户实际操作中获取，不需要手动填命令数和统一延时。
+
+### 录制
+
+```bash
+python Recorder.py record [-o <输出文件>] [-s <启动延时秒>] [-k <停止键>]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `-o`, `--output` | 录制结果保存的文件，默认 `recording.json` |
+| `-s`, `--start-delay` | 开始录制前等待时间（秒），默认 3 |
+| `-k`, `--stop-key` | **停止录制热键**（pyautogui 键名），默认 `esc` |
+
+录制内容以 JSON 保存（每条事件带时间戳，相邻事件时间差即该步真实延时）：
+
+```json
+{"t": 0.00, "type": "down",  "button": "left",  "x": 100, "y": 200}
+{"t": 0.42, "type": "up",    "button": "left",  "x": 100, "y": 200}
+{"t": 1.35, "type": "keydown", "key": "enter"}
+{"t": 1.42, "type": "keyup",   "key": "enter"}
+```
+
+**示例：** 延迟 2 秒开始，用 `esc` 停止，保存到 `demo.json`
+
+```bash
+python Recorder.py record -s 2 -k esc -o demo.json
+```
+
+> 按 `-k` 指定的键即停止录制，该操作本身不会被记录。
+
+### 回放
+
+```bash
+python Recorder.py replay <录制文件> -r <重复次数> [-s <执行前延时>] [-w <轮间等待>] [-k <停止键>] [--speed <倍速>]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `-r`, `--repeat` | 重复次数，`0` 表示无限循环（必填） |
+| `-s`, `--start-delay` | 开始回放前的等待时间（秒），用于切入目标窗口，默认 0 |
+| `-w`, `--wait` | 每轮执行完后的等待时间（秒），默认 0 |
+| `-k`, `--stop-key` | 回放停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `--speed` | 回放倍速，如 `2` 表示 2 倍速（`0.5` 表示半速），默认 1.0 |
+
+回放按录制时相邻事件的时间差依次执行，跨轮使用同一个累积目标时刻调度（防漂移），轮间 `-w` 等待也并入该调度。
+
+**示例 1：** 回放一次
+
+```bash
+python Recorder.py replay demo.json -r 1
+```
+
+**示例 2：** 3 倍速循环回放
+
+```bash
+python Recorder.py replay demo.json -r 0 --speed 3
+```
+
+**示例 3：** 1 秒后开始，循环回放，每轮之间间隔 2 秒
+
+```bash
+python Recorder.py replay demo.json -r 0 -s 1 -w 2
+```
+
+### 说明与限制
+
+- 支持左/中/右键的按下与抬起（自动包含双击、按键时长）、滚轮滚动、键盘按键（含按住时长）。
+- 纯鼠标移动不记录；按下按键（拖拽）期间只记录起止位置，回放为直线拖拽。
+- 需要全局输入钩子，仅 Windows/macOS/Linux 桌面环境适用；依赖 `pynput`。
+- 录制坐标为屏幕绝对坐标，窗口移动或缩放后需重新录制。
 
 ## 许可
 

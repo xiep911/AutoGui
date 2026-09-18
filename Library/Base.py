@@ -1,0 +1,137 @@
+# Copyright (c) 2026 xiepeng. All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+
+import threading
+
+import pyautogui
+
+try:
+  from pynput import keyboard as pynput_keyboard
+except ImportError:
+  pynput_keyboard = None
+
+# pynput 特殊键枚举 -> pyautogui 按键名（Recorder 录制时直接存这个名字，
+# 停止键匹配时再经 KEY_ALIASES 归一化；仅保留 pyautogui.isValidKey 能识别的名字）
+KEY_MAP = {}
+if pynput_keyboard is not None:
+  KEY_MAP.update({
+    pynput_keyboard.Key.alt: 'alt',
+    pynput_keyboard.Key.backspace: 'backspace',
+    pynput_keyboard.Key.caps_lock: 'capslock',
+    pynput_keyboard.Key.cmd: 'win',
+    pynput_keyboard.Key.ctrl: 'ctrl',
+    pynput_keyboard.Key.ctrl_l: 'ctrl',
+    pynput_keyboard.Key.ctrl_r: 'ctrl',
+    pynput_keyboard.Key.delete: 'delete',
+    pynput_keyboard.Key.down: 'down',
+    pynput_keyboard.Key.end: 'end',
+    pynput_keyboard.Key.enter: 'enter',
+    pynput_keyboard.Key.esc: 'escape',
+    pynput_keyboard.Key.home: 'home',
+    pynput_keyboard.Key.insert: 'insert',
+    pynput_keyboard.Key.left: 'left',
+    pynput_keyboard.Key.num_lock: 'numlock',
+    pynput_keyboard.Key.page_down: 'pagedown',
+    pynput_keyboard.Key.page_up: 'pageup',
+    pynput_keyboard.Key.pause: 'pause',
+    pynput_keyboard.Key.print_screen: 'printscreen',
+    pynput_keyboard.Key.right: 'right',
+    pynput_keyboard.Key.scroll_lock: 'scrolllock',
+    pynput_keyboard.Key.shift: 'shift',
+    pynput_keyboard.Key.shift_r: 'shift',
+    pynput_keyboard.Key.space: 'space',
+    pynput_keyboard.Key.tab: 'tab',
+    pynput_keyboard.Key.up: 'up',
+  })
+  for _i in range(1, 21):
+    KEY_MAP[getattr(pynput_keyboard.Key, f'f{_i}')] = f'f{_i}'
+
+# pyautogui 同一键有多种写法 -> 归一到同一形式（用于停止键/停止录制键匹配）
+KEY_ALIASES = {
+  'esc': 'esc', 'escape': 'esc',
+  'pageup': 'pageup', 'pgup': 'pageup',
+  'pagedown': 'pagedown', 'pgdn': 'pagedown',
+  'ctrl': 'ctrl', 'ctrlleft': 'ctrl', 'ctrlright': 'ctrl',
+  'shift': 'shift', 'shiftleft': 'shift', 'shiftright': 'shift',
+  'alt': 'alt', 'altleft': 'alt', 'altright': 'alt',
+  'cmd': 'win', 'command': 'win', 'win': 'win',
+  'enter': 'enter', 'return': 'enter',
+  'numlock': 'numlock', 'capslock': 'capslock', 'scrolllock': 'scrolllock',
+  'printscreen': 'printscreen', 'up': 'up', 'down': 'down',
+  'left': 'left', 'right': 'right', 'space': 'space', 'tab': 'tab',
+}
+
+def CanonKey(name: str) -> str:
+  """把键名归一到 KEY_ALIASES 定义的形式；未定义时原样返回"""
+  return KEY_ALIASES.get(name, name)
+
+# 需要 Shift 组合的符号 -> 基础键（Shift 状态由独立的 keydown/keyup 事件表达）
+SHIFT_MAP = {
+  '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6',
+  '&': '7', '*': '8', '(': '9', ')': '0', '_': '-', '+': '=',
+  '{': '[', '}': ']', '|': '\\', '"': "'", ':': ';', '<': ',',
+  '>': '.', '?': '/', '~': '`'
+}
+
+def ToKeyName(key: object) -> str | None:
+  """把 pynput 收到的按键转换成 pyautogui 按键名（录制存盘用），无法识别时返回 None。"""
+  if pynput_keyboard is None:
+    return None
+  if isinstance(key, pynput_keyboard.Key):
+    return KEY_MAP.get(key)
+  char = getattr(key, 'char', None)
+  if char is None or len(char) != 1:
+    return None
+  if pyautogui.isValidKey(char):
+    return char if char.isdigit() else char.lower()
+  return SHIFT_MAP.get(char)
+
+def ToStopKeyName(key: object) -> str | None:
+  """把 pynput 收到的按键转换成停止键名（热键匹配用），无法识别时返回 None。"""
+  if pynput_keyboard is None:
+    return None
+  if isinstance(key, pynput_keyboard.Key):
+    return KEY_MAP.get(key)
+  char = getattr(key, 'char', None)
+  if char is not None and len(char) == 1:
+    return char.lower()
+  return None
+
+class StopControl:
+  """后台全局热键监听：终端失焦时也能停止鼠标/按键操作"""
+
+  def __init__(self, stopKey: str) -> None:
+    self.stopKey = stopKey
+    self._Event = threading.Event()
+    self._listener = None
+    if pynput_keyboard is None:
+      print(f'Warning: pynput not installed, stop hotkey [{stopKey}] disabled.')
+      return
+    self._listener = pynput_keyboard.Listener(on_press=self.OnPress)
+    self._listener.daemon = True
+    self._listener.start()
+
+  def OnPress(self, key) -> None:
+    """监听回调：命中停止键时置位"""
+    name = ToStopKeyName(key)
+    if name is not None and CanonKey(name) == CanonKey(self.stopKey):
+      self._Event.set()
+
+  def Stopped(self) -> bool:
+    """是否已按下停止热键"""
+    return self._Event.is_set()
+
+  def Stop(self) -> None:
+    """停止后台监听"""
+    if self._listener is not None:
+      self._listener.stop()
+
+def ValidateStopKey(stopKey: str) -> None:
+  """校验停止热键"""
+  if stopKey.isdigit():  # 允许单个数字字符键（如 "9"）
+    if len(stopKey) != 1:
+      raise ValueError(f'Invalid stop key: {stopKey}')
+    return
+  if not pyautogui.isValidKey(stopKey):
+    raise ValueError(f'Invalid stop key: {stopKey}')
