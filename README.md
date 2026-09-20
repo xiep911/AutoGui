@@ -13,6 +13,14 @@ pip install -r requirements.txt
 - `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局停止热键 `StopControl`、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`）、参数预设加载/保存（`LoadPreset`/`SavePreset`/`GetPresetNumber`）
 - `MouseClick.py` / `KeyPress.py` / `Recorder.py` — 脚本主体，从 `Library.Base` 导入公共部分
 
+## Git 提交签名
+
+本仓库要求提交带验证签名（SSH 签名，无需 GPG）。新工作机配置见 [Docs/SETUP_SSH_SIGNING.md](Docs/SETUP_SSH_SIGNING.md)，可一键脚本完成：
+
+```bash
+bash Scripts/SetupGitSigning.sh
+```
+
 ## 鼠标点击 — MouseClick.py
 
 录制鼠标点击位置和操作类型，批量重复执行。
