@@ -6,7 +6,7 @@ import argparse
 import os
 
 import pyautogui
-from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
+from Library.Base import DEFAULT_DELAY, GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
 
 def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -19,7 +19,7 @@ def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
   parser.add_argument('-l', '--list', type=str, default='', help='Comma-separated key list, e.g. "up,down,left,right"')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times, 0 for infinite loop')
   parser.add_argument('-d', '--delay', type=float, default=None,
-                      help='Time(seconds) between commands, default: 0 or preset value if not given')
+                      help='Time(seconds) between commands, default: 0.1 or preset value if not given')
   parser.add_argument('-w', '--wait', type=float, default=None,
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
   parser.add_argument('-a', '--auto', action='store_true', default=False,
@@ -119,8 +119,8 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
     for j in range(len(keyList)):
       if stopControl.Stopped():
         break
-      pyautogui.press(keyList[j])
-      time.sleep(delay)
+      # delay 注入 pyautogui interval（轮末最后一条 interval=0 以消除 delay+wait 叠加，wait 为纯轮间间隔）
+      pyautogui.press(keyList[j], presses=1, interval=0.0 if j == len(keyList) - 1 else delay)
     if stopControl.Stopped():
       break
     time.sleep(wait)
@@ -157,7 +157,7 @@ def main():
     else:
       keyList = GetKeyList(args.num)
     # 节奏参数：CLI 显式值优先，否则取预设值，默认 0
-    delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', 0)
+    delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', DEFAULT_DELAY)
     wait = args.wait if args.wait is not None else GetPresetNumber(preset, 'wait', 0)
     # 仅显式指定 -o 时保存预设
     if args.output is not None:

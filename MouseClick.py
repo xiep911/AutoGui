@@ -6,7 +6,7 @@ import argparse
 import os
 
 import pyautogui
-from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
+from Library.Base import DEFAULT_DELAY, GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -29,7 +29,7 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
                       help='Start clicks immediately without waiting for the start key')
   parser.add_argument('-s', '--start-delay', type=float, default=0, help='Time(seconds) to wait before starting clicks')
   parser.add_argument('-d', '--delay', type=float, default=None,
-                      help='Time(seconds) between clicks, default: 0 or preset value if not given')
+                      help='Time(seconds) between clicks, default: 0.1 or preset value if not given')
   parser.add_argument('-w', '--wait', type=float, default=None,
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
   parser.add_argument('-k1', '--start-key', type=str, default='enter',
@@ -149,8 +149,16 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
         break
       if positionList is not None:
         pyautogui.moveTo(positionList[j][0], positionList[j][1])
-      CLICK_OPTION[clickList[j]]()
-      time.sleep(delay)
+      opt = CLICK_OPTION[clickList[j]]
+      last = (j == len(clickList) - 1)
+      if clickList[j] == 2:
+        # 双击保持快速连点（interval=0），间隔在调用后补，轮末不补以让 wait 成为纯轮间间隔
+        opt()
+        if not last:
+          time.sleep(delay)
+      else:
+        # delay 注入 interval，轮末最后一条 interval=0 消除 delay+wait 叠加
+        opt(interval=0.0 if last else delay)
     if stopControl.Stopped():
       break
     time.sleep(wait)
@@ -197,7 +205,7 @@ def main():
       # 生成鼠标点击的位置列表
       positionList = GetPositionList(len(clickList)) if args.move else None
     # 节奏参数：CLI 显式值优先，否则取预设值，默认 0
-    delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', 0)
+    delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', DEFAULT_DELAY)
     wait = args.wait if args.wait is not None else GetPresetNumber(preset, 'wait', 0)
     # 仅显式指定 -o 时保存预设
     if args.output is not None:

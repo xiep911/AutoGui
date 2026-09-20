@@ -8,6 +8,12 @@ import threading
 
 import pyautogui
 
+# 消除 pyautogui 每次调用后自带的隐性 0.1s（PAUSE），让延时完全由 delay/wait/interval 决定
+pyautogui.PAUSE = 0
+
+# 未指定 -d 且无预设时的每命令间隔（秒）
+DEFAULT_DELAY = 0.1
+
 try:
   from pynput import keyboard as pynput_keyboard
 except ImportError:
