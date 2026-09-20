@@ -126,12 +126,8 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
     time.sleep(wait)
     if stopControl.Stopped():
       break
-    if repeat > 0:
-      print(f'Run {roundCount}/{repeat} times')
-      if roundCount >= repeat:
-        break
-    else:
-      print(f'Run {roundCount} times')
+    if repeat > 0 and roundCount >= repeat:
+      break
   stopControl.Stop()
   if stopControl.Stopped():
     print(f'Stopped by [{stopKey}] after {roundCount} round(s).')
