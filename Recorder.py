@@ -16,7 +16,7 @@ except ImportError as e:
   print('Run: pip install -r requirements.txt')
   sys.exit(1)
 
-from Library.Base import CanonKey, StopControl, ToKeyName, ValidateStopKey
+from Library.Base import CanonKey, StartControl, StopControl, ToKeyName, ValidateStartKey, ValidateStopKey
 
 def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -27,20 +27,28 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
   rec = sub.add_parser('record', help='Record user operations to a JSON file')
   rec.add_argument('-o', '--output', type=str, default='recording.json',
                    help='Output recording file, default: recording.json')
-  rec.add_argument('-s', '--start-delay', type=float, default=3,
-                   help='Time(seconds) to wait before recording starts, default: 3')
-  rec.add_argument('-k', '--stop-key', type=str, default='esc',
+  rec.add_argument('-a', '--auto', action='store_true', default=False,
+                   help='Start recording immediately without waiting for the start key')
+  rec.add_argument('-k1', '--start-key', type=str, default='enter',
+                   help='Key to press to start recording (global hotkey), default: enter; ignored with -a/--auto')
+  rec.add_argument('-s', '--start-delay', type=float, default=0,
+                   help='Buffer time(seconds) after start before recording begins, default: 0')
+  rec.add_argument('-k2', '--stop-key', type=str, default='esc',
                    help='Key to stop recording (pyautogui key name), default: esc')
 
   rep = sub.add_parser('replay', help='Replay a recorded JSON file')
   rep.add_argument('file', type=str, help='Recording JSON file')
   rep.add_argument('-r', '--repeat', type=int, required=True,
                    help='Times to replay, 0 for infinite loop (required)')
+  rep.add_argument('-a', '--auto', action='store_true', default=False,
+                   help='Start replay immediately without waiting for the start key')
+  rep.add_argument('-k1', '--start-key', type=str, default='enter',
+                   help='Key to press to start replay (global hotkey), default: enter; ignored with -a/--auto')
   rep.add_argument('-s', '--start-delay', type=float, default=0,
-                   help='Time(seconds) to wait before starting replay, default: 0')
+                   help='Buffer time(seconds) after start before replaying, default: 0')
   rep.add_argument('-w', '--wait', type=float, default=0,
                    help='Time(seconds) to wait between each replay round, default: 0')
-  rep.add_argument('-k', '--stop-key', type=str, default='esc',
+  rep.add_argument('-k2', '--stop-key', type=str, default='esc',
                    help='Key to stop the replay (global hotkey), default: esc')
   rep.add_argument('--speed', type=float, default=1.0,
                    help='Replay speed multiplier, e.g. 2 means 2x faster, default: 1.0')
@@ -50,6 +58,7 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
 def ArgCheckRecorder(args: argparse.Namespace) -> None:
   """参数校验"""
   if args.command == 'record':
+    ValidateStartKey(args.start_key.lower())
     ValidateStopKey(args.stop_key.lower())
     if args.start_delay < 0:
       raise ValueError('Invalid start delay time (-s/--start-delay)')
@@ -62,12 +71,23 @@ def ArgCheckRecorder(args: argparse.Namespace) -> None:
       raise ValueError('Invalid wait time (-w/--wait)')
     if args.speed <= 0:
       raise ValueError('Invalid replay speed (--speed)')
+    ValidateStartKey(args.start_key.lower())
     ValidateStopKey(args.stop_key.lower())
 
-def Record(outFile: str, startDelay: float, stopKey: str) -> None:
+def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stopKey: str) -> None:
   """录制用户操作"""
-  print(f'Recording will start in {startDelay} seconds...')
-  pyautogui.sleep(startDelay)
+  # 是否自动执行：-a 时直接开始，否则等待开始热键（全局监听，终端失焦也能触发）
+  if not autoStart:
+    startControl = StartControl(startKey)
+    print(f'Press [{startKey}] to start recording.')
+    while not startControl.Started():
+      pyautogui.sleep(0.1)
+    startControl.Stop()
+
+  # 开始键按下后的缓冲（-s），就绪用
+  if startDelay > 0:
+    print(f'Recording will start in {startDelay} seconds...')
+    pyautogui.sleep(startDelay)
 
   events = []
   stopped = False
@@ -157,7 +177,7 @@ def DispatchEvent(event: dict) -> None:
   except Exception as e:
     print(f'Warning: failed to replay {etype}: {e}')
 
-def Replay(recFile: str, repeat: int, startDelay: float, wait: float, speed: float, stopKey: str) -> None:
+def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay: float, wait: float, speed: float, stopKey: str) -> None:
   """按录制延时回放"""
   with open(recFile, 'r', encoding='utf-8') as f:
     data = json.load(f)
@@ -172,7 +192,15 @@ def Replay(recFile: str, repeat: int, startDelay: float, wait: float, speed: flo
     prevT = events[i - 1].get('t', 0.0) if i > 0 else 0.0
     delays.append(ev.get('t', 0.0) - prevT)
 
-  # 启动延时：切入目标窗口的缓冲，结束前不执行任何操作
+  # 是否自动执行：-a 时直接开始，否则等待开始热键（全局监听，终端失焦也能触发）
+  if not autoStart:
+    startControl = StartControl(startKey)
+    print(f'Press [{startKey}] to start replay.')
+    while not startControl.Started():
+      pyautogui.sleep(0.1)
+    startControl.Stop()
+
+  # 开始键按下后的缓冲（-s），切入目标窗口用，结束前不执行任何操作
   if startDelay > 0:
     print(f'Replay will start in {startDelay} seconds...')
     time.sleep(startDelay)
@@ -224,9 +252,9 @@ def main() -> None:
     args = argParse.parse_args()
     ArgCheckRecorder(args)
     if args.command == 'record':
-      Record(args.output, args.start_delay, CanonKey(args.stop_key.lower()))
+      Record(args.output, args.auto, args.start_key.lower(), args.start_delay, CanonKey(args.stop_key.lower()))
     else:
-      Replay(args.file, args.repeat, args.start_delay, args.wait, args.speed, CanonKey(args.stop_key.lower()))
+      Replay(args.file, args.repeat, args.auto, args.start_key.lower(), args.start_delay, args.wait, args.speed, CanonKey(args.stop_key.lower()))
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:

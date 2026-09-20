@@ -103,25 +103,25 @@ def ToStopKeyName(key: object) -> str | None:
 class StopControl:
   """后台全局热键监听：终端失焦时也能停止鼠标/按键操作"""
 
-  def __init__(self, stopKey: str) -> None:
-    self.stopKey = stopKey
+  def __init__(self, key: str, label: str = 'stop') -> None:
+    self.key = key
     self._Event = threading.Event()
     self._listener = None
     if pynput_keyboard is None:
-      print(f'Warning: pynput not installed, stop hotkey [{stopKey}] disabled.')
+      print(f'Warning: pynput not installed, {label} hotkey [{key}] disabled.')
       return
     self._listener = pynput_keyboard.Listener(on_press=self.OnPress)
     self._listener.daemon = True
     self._listener.start()
 
   def OnPress(self, key) -> None:
-    """监听回调：命中停止键时置位"""
+    """监听回调：命中热键时置位"""
     name = ToStopKeyName(key)
-    if name is not None and CanonKey(name) == CanonKey(self.stopKey):
+    if name is not None and CanonKey(name) == CanonKey(self.key):
       self._Event.set()
 
   def Stopped(self) -> bool:
-    """是否已按下停止热键"""
+    """是否已按下热键"""
     return self._Event.is_set()
 
   def Stop(self) -> None:
@@ -137,6 +137,29 @@ def ValidateStopKey(stopKey: str) -> None:
     return
   if not pyautogui.isValidKey(stopKey):
     raise ValueError(f'Invalid stop key: {stopKey}')
+
+class StartControl(StopControl):
+  """后台全局热键监听：等待开始热键按下后开始执行（复用 StopControl 的监听逻辑）"""
+
+  def __init__(self, startKey: str) -> None:
+    super().__init__(startKey, label='start')
+
+  def Started(self) -> bool:
+    """是否已按下开始热键"""
+    return self.Stopped()
+
+  def Available(self) -> bool:
+    """开始热键是否可用（依赖 pynput 全局监听）"""
+    return self._listener is not None
+
+def ValidateStartKey(startKey: str) -> None:
+  """校验开始热键"""
+  if startKey.isdigit():  # 允许单个数字字符键（如 "9"）
+    if len(startKey) != 1:
+      raise ValueError(f'Invalid start key: {startKey}')
+    return
+  if not pyautogui.isValidKey(startKey):
+    raise ValueError(f'Invalid start key: {startKey}')
 
 # --- 参数预设文件（KeyPress/MouseClick 的录制与回放） ---
 

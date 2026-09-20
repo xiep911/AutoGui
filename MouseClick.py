@@ -6,7 +6,7 @@ import argparse
 import os
 
 import pyautogui
-from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StopControl, ValidateStopKey
+from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -25,13 +25,16 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
   parser.add_argument('-l', '--list', type=str, default='', help='Comma-separated click list, e.g. "1,2,3" (1=left, 2=double, 3=right)')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times, 0 for infinite loop')
   parser.add_argument('-m', '--move', action='store_true', default=False, help='Move mouse to position before clicking')
-  parser.add_argument('-a', '--auto', action='store_true', default=False, help='Auto start clicks without waiting for Enter')
+  parser.add_argument('-a', '--auto', action='store_true', default=False,
+                      help='Start clicks immediately without waiting for the start key')
   parser.add_argument('-s', '--start-delay', type=float, default=0, help='Time(seconds) to wait before starting clicks')
   parser.add_argument('-d', '--delay', type=float, default=None,
                       help='Time(seconds) between clicks, default: 0 or preset value if not given')
   parser.add_argument('-w', '--wait', type=float, default=None,
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
-  parser.add_argument('-k', '--stop-key', type=str, default='esc', help='Key to stop the clicks (global hotkey), default: esc')
+  parser.add_argument('-k1', '--start-key', type=str, default='enter',
+                      help='Key to press to start the clicks (global hotkey), default: enter; ignored with -a/--auto')
+  parser.add_argument('-k2', '--stop-key', type=str, default='esc', help='Key to stop the clicks (global hotkey), default: esc')
   parser.add_argument('-o', '--output', type=str, default=None,
                       help='Save the click commands (+positions/delay/wait) to a preset JSON file')
 
@@ -65,6 +68,7 @@ def ArgCheckMouseClick(args: argparse.Namespace) -> None:
     raise ValueError('Invalid wait time (-w/--wait)')
   if args.start_delay < 0:
     raise ValueError('Invalid start delay time (-s/--start-delay)')
+  ValidateStartKey(args.start_key.lower())
   ValidateStopKey(args.stop_key.lower())
 
 def GetClickList(num: int) -> list:
@@ -103,14 +107,22 @@ def GetPositionList(num: int) -> list:
     print(f'Captured position: ({x}, {y})')
   return positionList
 
-def RunClick(clickList: list, positionList: list | None, autoStart: bool, repeat: int, startDelay: float, delay: float, wait: float, stopKey: str) -> None:
+def RunClick(clickList: list, positionList: list | None, startDelay: float, startKey: str | None, repeat: int, delay: float, wait: float, stopKey: str) -> None:
   """运行点击命令"""
   import time
 
-  # 是否自动执行
-  if autoStart is False:
-    print('Press enter to start the clicks...')
-    input()
+  # 是否自动执行：-a 时传入的 startKey 为 None 直接开始，否则等待开始热键
+  if startKey is not None:
+    # 等待开始热键（全局监听，终端失焦也能触发，可在目标窗口就绪后按下）
+    startControl = StartControl(startKey)
+    if startControl.Available():
+      print(f'Press [{startKey}] to start clicks.')
+      while not startControl.Started():
+        pyautogui.sleep(0.1)
+      startControl.Stop()
+    else:
+      print('pynput not installed, press enter to start the clicks...')
+      input()
 
   # 移动到目标位置，防止激活时处于窗口外
   if positionList is not None and len(positionList) > 0:
@@ -197,8 +209,9 @@ def main():
         'delay': delay,
         'wait': wait,
       })
-    # 开始执行点击命令
-    RunClick(clickList, positionList, args.auto, args.repeat, args.start_delay, delay, wait, args.stop_key.lower())
+    # 开始执行点击命令：-a 时关闭开始热键等待，否则等 start-key（默认 enter）按下
+    startKey = None if args.auto else args.start_key.lower()
+    RunClick(clickList, positionList, args.start_delay, startKey, args.repeat, delay, wait, args.stop_key.lower())
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:

@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 ## 代码结构
 
-- `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局停止热键 `StopControl`、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`）、参数预设加载/保存（`LoadPreset`/`SavePreset`/`GetPresetNumber`）
+- `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局热键监听（停止 `StopControl` / 开始 `StartControl`）、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`/`ValidateStartKey`）、参数预设加载/保存（`LoadPreset`/`SavePreset`/`GetPresetNumber`）
 - `MouseClick.py` / `KeyPress.py` / `Recorder.py` — 脚本主体，从 `Library.Base` 导入公共部分
 
 ## Git 提交签名
@@ -28,7 +28,7 @@ bash Scripts/SetupGitSigning.sh
 支持两种模式输入点击命令列表，也支持从预设文件加载。
 
 ```bash
-python MouseClick.py (-n <命令数> | -l <点击列表> | <预设文件>) -r <重复次数> [-m] [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>] [-o <预设文件>]
+python MouseClick.py (-n <命令数> | -l <点击列表> | <预设文件>) -r <重复次数> [-m] [-a] [-k1 <开始热键>] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k2 <停止键>] [-o <预设文件>]
 ```
 
 | 参数 | 说明 |
@@ -38,11 +38,12 @@ python MouseClick.py (-n <命令数> | -l <点击列表> | <预设文件>) -r <�
 | `-l`, `--list` | 逗号分隔的点击列表，如 `"1,2,3"`（1=左键，2=双击，3=右键） |
 | `-r`, `--repeat` | 重复执行次数，`0` 表示无限循环（必填） |
 | `-m`, `--move` | 每次点击前移动到记录的位置 |
-| `-a`, `--auto` | 自动执行，跳过 Enter 确认 |
+| `-a`, `--auto` | 自动执行，跳过开始热键等待直接开始 |
+| `-k1`, `--start-key` | 开始热键，按下该键后才开始执行（pynput 全局监听，终端失焦也能触发），默认 `enter`；指定 `-a` 时跳过 |
 | `-s`, `--start-delay` | 开始执行前的等待时间（秒），用于切换窗口，默认 0 |
 | `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0，未给定时取预设值 |
 | `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0，未给定时取预设值 |
-| `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-k2`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
 | `-o`, `--output` | 将当前点击配置保存为预设 JSON 文件，**仅显式指定时保存** |
 
 `-n`、`-l`、`file` 三者互斥，必须指定其中一个；`file` 与 `-m` 也互斥（坐标由预设提供）。
@@ -83,6 +84,12 @@ python MouseClick.py -l "1,2,3" -m -r 3 -o clicks.json
 python MouseClick.py clicks.json -r 5
 ```
 
+**示例 7（开始热键）：** 脚本启动后等待，切到目标窗口按下 `f2` 才开始自动点击
+
+```bash
+python MouseClick.py -l "1,2,3" -r 3 -m -k1 f2
+```
+
 ## 键盘按键 — KeyPress.py
 
 支持两种模式输入按键列表，也支持从预设文件加载，批量重复按下。
@@ -102,7 +109,7 @@ python MouseClick.py clicks.json -r 5
 | 符号 | `` ` `` `-` `=` `[` `]` `\` `;` `'` `,` `.` `/` |
 
 ```bash
-python KeyPress.py (-n <命令数> | -l <按键列表> | <预设文件>) -r <重复次数> [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>] [-o <预设文件>]
+python KeyPress.py (-n <命令数> | -l <按键列表> | <预设文件>) -r <重复次数> [-a] [-k1 <开始热键>] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k2 <停止键>] [-o <预设文件>]
 ```
 
 | 参数 | 说明 |
@@ -111,11 +118,12 @@ python KeyPress.py (-n <命令数> | -l <按键列表> | <预设文件>) -r <重
 | `-n`, `--num` | 按键命令数量，交互式逐个输入 |
 | `-l`, `--list` | 逗号分隔的按键列表，如 `"up,down,left,right"` |
 | `-r`, `--repeat` | 重复执行次数，`0` 表示无限循环（必填） |
-| `-a`, `--auto` | 自动执行，跳过 Enter 确认 |
+| `-a`, `--auto` | 自动执行，跳过开始热键等待直接开始 |
+| `-k1`, `--start-key` | 开始热键，按下该键后才开始执行（pynput 全局监听，终端失焦也能触发），默认 `enter`；指定 `-a` 时跳过 |
 | `-s`, `--start-delay` | 执行前等待时间（秒），默认 0 |
 | `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0，未给定时取预设值 |
 | `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0，未给定时取预设值 |
-| `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-k2`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
 | `-o`, `--output` | 将当前按键配置保存为预设 JSON 文件，**仅显式指定时保存** |
 
 `-n`、`-l`、`file` 三者互斥，必须指定其中一个。
@@ -144,6 +152,12 @@ python KeyPress.py -l "up,down,left,right" -r 5 -d 0.5 -o keys.json
 python KeyPress.py keys.json -r 5
 ```
 
+**示例 5（开始热键）：** 脚本启动后等待，切到目标窗口并按下 `f2` 才开始执行（默认开始热键是 `enter`，只有想换键时才需指定 `-k1`）
+
+```bash
+python KeyPress.py -l "up,down,left,right" -r 5 -k1 f2
+```
+
 ### 参数统一约定
 
 三个脚本通用的参数语义一致：
@@ -151,13 +165,14 @@ python KeyPress.py keys.json -r 5
 | 参数 | 统一语义 |
 |------|----------|
 | `-r`, `--repeat` | 重复轮数，`0` 表示无限循环（三个脚本均必填） |
-| `-s`, `--start-delay` | 开始执行前的等待秒数（Recorder `record` 默认 3，其余默认 0） |
+| `-s`, `--start-delay` | 开始热键按下后的缓冲秒数，默认 0（`-a` 时即启动后缓冲） |
 | `-w`, `--wait` | 每轮结束后的等待秒数，默认 0 |
-| `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
-| `-a`, `--auto` | MouseClick/KeyPress 跳过启动前的 Enter 确认；Recorder 无确认环节 |
+| `-k2`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-a`, `--auto` | 跳过开始热键等待，直接执行（三个脚本通用，含 Recorder 的 record/replay） |
+| `-k1`, `--start-key` | 开始热键，按下后才开始执行（pynput 全局监听，默认 `enter`，`-a` 时跳过）；三个脚本通用 |
 | 命令输入 | 统一用 `-l, --list` 直接给命令列表；或用 `-n, --num` 逐个交互输入；或传预设文件 `file` 加载，三者互斥 |
 
-> **无限循环停止：** `-r 0` 时后台监听 `-k` 指定的停止键（默认 `esc`），终端失焦也能生效；终端的 `Ctrl+C` 和鼠标移到屏幕角落（pyautogui 失效保险）仍可作为备用手段。
+> **无限循环停止：** `-r 0` 时后台监听 `-k2` 指定的停止键（默认 `esc`），终端失焦也能生效；终端的 `Ctrl+C` 和鼠标移到屏幕角落（pyautogui 失效保险）仍可作为备用手段。
 
 ### 参数预设（KeyPress/MouseClick 的录制与回放）
 
@@ -180,7 +195,7 @@ KeyPress/MouseClick 支持把"用户输入的配置"保存为 JSON 预设文件�
 - `-o/--output` **显式指定时才保存**，默认不保存；保存时打印完整文件位置提示。
 - 回放用位置参数 `file` 加载预设；`-r` **必须**在命令行指定，预设**不保存**重复次数（重复次数随场合给定）。
 - CLI 显式给出的 `-d/-w` **覆盖**预设值；未给出时取预设值，无预设则 0。
-- `-s`（启动延时）、`-k`（停止键）、`-a`（自动启动）属执行环境，不入预设，始终走命令行。
+- `-s`（启动延时）、`-k1`（开始热键）、`-k2`（停止键）、`-a`（自动启动）属执行环境，不入预设，始终走命令行。
 
 ## 录制回放 — Recorder.py
 
@@ -189,14 +204,16 @@ KeyPress/MouseClick 支持把"用户输入的配置"保存为 JSON 预设文件�
 ### 录制
 
 ```bash
-python Recorder.py record [-o <输出文件>] [-s <启动延时秒>] [-k <停止键>]
+python Recorder.py record [-o <输出文件>] [-a] [-k1 <开始热键>] [-s <缓冲秒>] [-k2 <停止键>]
 ```
 
 | 参数 | 说明 |
 |------|------|
 | `-o`, `--output` | 录制结果保存的文件，默认 `recording.json` |
-| `-s`, `--start-delay` | 开始录制前等待时间（秒），默认 3 |
-| `-k`, `--stop-key` | **停止录制热键**（pyautogui 键名），默认 `esc` |
+| `-a`, `--auto` | 跳过开始热键等待，直接开始录制 |
+| `-k1`, `--start-key` | 开始热键，按下后才开始录制（pynput 全局监听），默认 `enter`；`-a` 时跳过 |
+| `-s`, `--start-delay` | 开始热键按下后的缓冲秒数，默认 0 |
+| `-k2`, `--stop-key` | **停止录制热键**（pyautogui 键名），默认 `esc` |
 
 录制内容以 JSON 保存（每条事件带时间戳，相邻事件时间差即该步真实延时）：
 
@@ -207,26 +224,28 @@ python Recorder.py record [-o <输出文件>] [-s <启动延时秒>] [-k <停止
 {"t": 1.42, "type": "keyup",   "key": "enter"}
 ```
 
-**示例：** 延迟 2 秒开始，用 `esc` 停止，保存到 `demo.json`
+**示例：** 切到目标窗口按下 `f2` 开始录制，用 `esc` 停止，保存到 `demo.json`
 
 ```bash
-python Recorder.py record -s 2 -k esc -o demo.json
+python Recorder.py record -k1 f2 -k2 esc -o demo.json
 ```
 
-> 按 `-k` 指定的键即停止录制，该操作本身不会被记录。
+> 按 `-k2` 指定的键即停止录制，该操作本身不会被记录。
 
 ### 回放
 
 ```bash
-python Recorder.py replay <录制文件> -r <重复次数> [-s <执行前延时>] [-w <轮间等待>] [-k <停止键>] [--speed <倍速>]
+python Recorder.py replay <录制文件> -r <重复次数> [-a] [-k1 <开始热键>] [-s <缓冲秒>] [-w <轮间等待>] [-k2 <停止键>] [--speed <倍速>]
 ```
 
 | 参数 | 说明 |
 |------|------|
 | `-r`, `--repeat` | 重复次数，`0` 表示无限循环（必填） |
-| `-s`, `--start-delay` | 开始回放前的等待时间（秒），用于切入目标窗口，默认 0 |
+| `-a`, `--auto` | 跳过开始热键等待，直接开始回放 |
+| `-k1`, `--start-key` | 开始热键，按下后才开始回放（pynput 全局监听，终端失焦也能触发），默认 `enter`；`-a` 时跳过 |
+| `-s`, `--start-delay` | 开始热键按下后的缓冲秒数，默认 0 |
 | `-w`, `--wait` | 每轮执行完后的等待时间（秒），默认 0 |
-| `-k`, `--stop-key` | 回放停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-k2`, `--stop-key` | 回放停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
 | `--speed` | 回放倍速，如 `2` 表示 2 倍速（`0.5` 表示半速），默认 1.0 |
 
 回放按录制时相邻事件的时间差依次执行，跨轮使用同一个累积目标时刻调度（防漂移），轮间 `-w` 等待也并入该调度。
@@ -243,7 +262,7 @@ python Recorder.py replay demo.json -r 1
 python Recorder.py replay demo.json -r 0 --speed 3
 ```
 
-**示例 3：** 1 秒后开始，循环回放，每轮之间间隔 2 秒
+**示例 3：** 按开始热键（默认 `enter`，`-a` 可跳过）后缓冲 1 秒，循环回放，每轮之间间隔 2 秒
 
 ```bash
 python Recorder.py replay demo.json -r 0 -s 1 -w 2

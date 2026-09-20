@@ -6,7 +6,7 @@ import argparse
 import os
 
 import pyautogui
-from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StopControl, ValidateStopKey
+from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
 
 def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -22,9 +22,12 @@ def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
                       help='Time(seconds) between commands, default: 0 or preset value if not given')
   parser.add_argument('-w', '--wait', type=float, default=None,
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
-  parser.add_argument('-a', '--auto', action='store_true', default=False, help='Auto start key press without waiting for Enter')
+  parser.add_argument('-a', '--auto', action='store_true', default=False,
+                      help='Start key press immediately without waiting for the start key')
   parser.add_argument('-s', '--start-delay', type=float, default=0, help='Time(seconds) to wait before starting key press')
-  parser.add_argument('-k', '--stop-key', type=str, default='esc', help='Key to stop the key press (global hotkey), default: esc')
+  parser.add_argument('-k1', '--start-key', type=str, default='enter',
+                      help='Key to press to start the key press (global hotkey), default: enter; ignored with -a/--auto')
+  parser.add_argument('-k2', '--stop-key', type=str, default='esc', help='Key to stop the key press (global hotkey), default: esc')
   parser.add_argument('-o', '--output', type=str, default=None,
                       help='Save the command list (+delay/wait) to a preset JSON file')
 
@@ -56,6 +59,7 @@ def ArgCheckKeyPress(args: argparse.Namespace) -> None:
     raise ValueError('Invalid wait time (-w/--wait)')
   if args.start_delay < 0:
     raise ValueError('Invalid start delay time (-s/--start-delay)')
+  ValidateStartKey(args.start_key.lower())
   ValidateStopKey(args.stop_key.lower())
 
 def GetKeyList(num: int) -> list[str]:
@@ -79,14 +83,22 @@ def GetKeyList(num: int) -> list[str]:
 
   return keyList
 
-def RunPress(keyList: list[str], autoStart: bool, startDelay: float, repeat: int, delay: float, wait: float, stopKey: str) -> None:
+def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat: int, delay: float, wait: float, stopKey: str) -> None:
   """运行按键命令"""
   import time
 
-  # 是否自动执行
-  if autoStart is False:
-    print('Press enter to start the key press...')
-    input()
+  # 是否自动执行：-a 时传入的 startKey 为 None 直接开始，否则等待开始热键
+  if startKey is not None:
+    # 等待开始热键（全局监听，终端失焦也能触发，可在目标窗口就绪后按下）
+    startControl = StartControl(startKey)
+    if startControl.Available():
+      print(f'Press [{startKey}] to start.')
+      while not startControl.Started():
+        pyautogui.sleep(0.1)
+      startControl.Stop()
+    else:
+      print('pynput not installed, press enter to start the key press...')
+      input()
 
   # 激活目标窗口: 部分窗口失焦后需要一次激活
   pyautogui.click()
@@ -156,8 +168,9 @@ def main():
         'delay': delay,
         'wait': wait,
       })
-    # 开始执行按键命令
-    RunPress(keyList, args.auto, args.start_delay, args.repeat, delay, wait, args.stop_key.lower())
+    # 开始执行按键命令：-a 时关闭开始热键等待，否则等 start-key（默认 enter）按下
+    startKey = None if args.auto else args.start_key.lower()
+    RunPress(keyList, args.start_delay, startKey, args.repeat, delay, wait, args.stop_key.lower())
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:
