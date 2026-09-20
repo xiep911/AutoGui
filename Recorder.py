@@ -80,8 +80,7 @@ def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stop
   if not autoStart:
     startControl = StartControl(startKey)
     print(f'Press [{startKey}] to start recording.')
-    while not startControl.Started():
-      pyautogui.sleep(0.1)
+    startControl.WaitStarted()
     startControl.Stop()
 
   # 开始键按下后的缓冲（-s），就绪用
@@ -196,8 +195,7 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
   if not autoStart:
     startControl = StartControl(startKey)
     print(f'Press [{startKey}] to start replay.')
-    while not startControl.Started():
-      pyautogui.sleep(0.1)
+    startControl.WaitStarted()
     startControl.Stop()
 
   # 开始键按下后的缓冲（-s），切入目标窗口用，结束前不执行任何操作

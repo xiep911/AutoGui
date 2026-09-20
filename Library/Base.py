@@ -154,6 +154,10 @@ class StartControl(StopControl):
     """是否已按下开始热键"""
     return self.Stopped()
 
+  def WaitStarted(self, timeout: float | None = None) -> bool:
+    """阻塞直到开始热键按下（事件驱动，无需轮询）"""
+    return self._Event.wait(timeout)
+
   def Available(self) -> bool:
     """开始热键是否可用（依赖 pynput 全局监听）"""
     return self._listener is not None

@@ -117,8 +117,7 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
     startControl = StartControl(startKey)
     if startControl.Available():
       print(f'Press [{startKey}] to start clicks.')
-      while not startControl.Started():
-        pyautogui.sleep(0.1)
+      startControl.WaitStarted()
       startControl.Stop()
     else:
       print('pynput not installed, press enter to start the clicks...')

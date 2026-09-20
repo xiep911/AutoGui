@@ -93,8 +93,7 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
     startControl = StartControl(startKey)
     if startControl.Available():
       print(f'Press [{startKey}] to start.')
-      while not startControl.Started():
-        pyautogui.sleep(0.1)
+      startControl.WaitStarted()
       startControl.Stop()
     else:
       print('pynput not installed, press enter to start the key press...')
