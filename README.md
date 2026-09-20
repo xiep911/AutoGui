@@ -10,32 +10,34 @@ pip install -r requirements.txt
 
 ## 代码结构
 
-- `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局停止热键 `StopControl`、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`）
+- `Library/Base.py` — 三个脚本共享的基础代码：pynput 全局停止热键 `StopControl`、按键名归一化与校验（`CanonKey`/`ToKeyName`/`ToStopKeyName`/`ValidateStopKey`）、参数预设加载/保存（`LoadPreset`/`SavePreset`/`GetPresetNumber`）
 - `MouseClick.py` / `KeyPress.py` / `Recorder.py` — 脚本主体，从 `Library.Base` 导入公共部分
 
 ## 鼠标点击 — MouseClick.py
 
 录制鼠标点击位置和操作类型，批量重复执行。
 
-支持两种模式输入点击命令列表。
+支持两种模式输入点击命令列表，也支持从预设文件加载。
 
 ```bash
-python MouseClick.py (-n <命令数> | -l <点击列表>) -r <重复次数> [-m] [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>]
+python MouseClick.py (-n <命令数> | -l <点击列表> | <预设文件>) -r <重复次数> [-m] [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>] [-o <预设文件>]
 ```
 
 | 参数 | 说明 |
 |------|------|
+| `file` | 预设文件，从中加载点击命令/坐标/节奏（与 `-n`、`-l` 互斥） |
 | `-n`, `--num` | 点击命令数量，交互式逐个输入 |
 | `-l`, `--list` | 逗号分隔的点击列表，如 `"1,2,3"`（1=左键，2=双击，3=右键） |
 | `-r`, `--repeat` | 重复执行次数，`0` 表示无限循环（必填） |
 | `-m`, `--move` | 每次点击前移动到记录的位置 |
 | `-a`, `--auto` | 自动执行，跳过 Enter 确认 |
 | `-s`, `--start-delay` | 开始执行前的等待时间（秒），用于切换窗口，默认 0 |
-| `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0 |
-| `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0 |
+| `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0，未给定时取预设值 |
+| `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0，未给定时取预设值 |
 | `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-o`, `--output` | 将当前点击配置保存为预设 JSON 文件，**仅显式指定时保存** |
 
-`-n` 和 `-l` 互斥，必须指定其中一个。
+`-n`、`-l`、`file` 三者互斥，必须指定其中一个；`file` 与 `-m` 也互斥（坐标由预设提供）。
 
 **示例 1：** 直接指定点击命令，重复 3 轮
 
@@ -61,9 +63,21 @@ python MouseClick.py -n 2 -r 3 -m -d 0.1
 python MouseClick.py -l "1,2,3" -r 0 -m -w 1
 ```
 
+**示例 5（保存预设）：** 指定点击列表并采集坐标，保存为预设后继续执行
+
+```bash
+python MouseClick.py -l "1,2,3" -m -r 3 -o clicks.json
+```
+
+**示例 6（回放预设）：** 从预设加载命令、坐标和节奏，重复 5 轮
+
+```bash
+python MouseClick.py clicks.json -r 5
+```
+
 ## 键盘按键 — KeyPress.py
 
-支持两种模式输入按键列表，批量重复按下。
+支持两种模式输入按键列表，也支持从预设文件加载，批量重复按下。
 
 > **注意：** 输入按键时需输入按键对应的英文名称（如 `enter`、`shift`、`ctrl`），而不是直接按下键盘按键。常见按键名称参考 [PyAutoGUI 按键文档](https://pyautogui.readthedocs.io/en/latest/keyboard.html#the-hotkey-function)。
 
@@ -80,21 +94,23 @@ python MouseClick.py -l "1,2,3" -r 0 -m -w 1
 | 符号 | `` ` `` `-` `=` `[` `]` `\` `;` `'` `,` `.` `/` |
 
 ```bash
-python KeyPress.py (-n <命令数> | -l <按键列表>) -r <重复次数> [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>]
+python KeyPress.py (-n <命令数> | -l <按键列表> | <预设文件>) -r <重复次数> [-a] [-s <启动延时>] [-d <间隔秒>] [-w <等待秒>] [-k <停止键>] [-o <预设文件>]
 ```
 
 | 参数 | 说明 |
 |------|------|
+| `file` | 预设文件，从中加载按键列表和节奏（与 `-n`、`-l` 互斥） |
 | `-n`, `--num` | 按键命令数量，交互式逐个输入 |
 | `-l`, `--list` | 逗号分隔的按键列表，如 `"up,down,left,right"` |
 | `-r`, `--repeat` | 重复执行次数，`0` 表示无限循环（必填） |
 | `-a`, `--auto` | 自动执行，跳过 Enter 确认 |
 | `-s`, `--start-delay` | 执行前等待时间（秒），默认 0 |
-| `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0 |
-| `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0 |
+| `-d`, `--delay` | 每条命令之间的等待时间（秒），默认 0，未给定时取预设值 |
+| `-w`, `--wait` | 每轮执行后的等待时间（秒），默认 0，未给定时取预设值 |
 | `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
+| `-o`, `--output` | 将当前按键配置保存为预设 JSON 文件，**仅显式指定时保存** |
 
-`-n` 和 `-l` 互斥，必须指定其中一个。
+`-n`、`-l`、`file` 三者互斥，必须指定其中一个。
 
 **示例 1：** 直接指定按键，自动执行，启动前等待 3 秒，重复 5 轮，间隔 0.5 秒
 
@@ -108,6 +124,18 @@ python KeyPress.py -l "up,down,left,right" -r 5 -a -s 3 -d 0.5
 python KeyPress.py -n 3 -r 2
 ```
 
+**示例 3（保存预设）：** 指定按键列表和节奏，保存为预设后继续执行
+
+```bash
+python KeyPress.py -l "up,down,left,right" -r 5 -d 0.5 -o keys.json
+```
+
+**示例 4（回放预设）：** 从预设加载按键和节奏，重复 5 轮
+
+```bash
+python KeyPress.py keys.json -r 5
+```
+
 ### 参数统一约定
 
 三个脚本通用的参数语义一致：
@@ -119,9 +147,32 @@ python KeyPress.py -n 3 -r 2
 | `-w`, `--wait` | 每轮结束后的等待秒数，默认 0 |
 | `-k`, `--stop-key` | 停止热键（pynput 全局监听，终端失焦也能停止），默认 `esc` |
 | `-a`, `--auto` | MouseClick/KeyPress 跳过启动前的 Enter 确认；Recorder 无确认环节 |
-| 命令输入 | 统一用 `-l, --list` 直接给命令列表；或用 `-n, --num` 逐个交互输入，两种互斥 |
+| 命令输入 | 统一用 `-l, --list` 直接给命令列表；或用 `-n, --num` 逐个交互输入；或传预设文件 `file` 加载，三者互斥 |
 
 > **无限循环停止：** `-r 0` 时后台监听 `-k` 指定的停止键（默认 `esc`），终端失焦也能生效；终端的 `Ctrl+C` 和鼠标移到屏幕角落（pyautogui 失效保险）仍可作为备用手段。
+
+### 参数预设（KeyPress/MouseClick 的录制与回放）
+
+KeyPress/MouseClick 支持把"用户输入的配置"保存为 JSON 预设文件，下次直接加载复用。这与 Recorder.py 的真实操作录制不同——这里存的是**参数快照**（命令列表 + 位置 + 节奏），无时间轴：
+
+```json
+{
+  "version": 1,
+  "type": "keypress",                // keypress / mouseclick
+  "keys": ["up", "down", "left"],    // keypress: 按键列表
+  "clicks": [1, 2, 3],               // mouseclick: 点击命令 1/2/3
+  "positions": [[100, 200]],         // mouseclick: -m 采集的坐标，可为空
+  "delay": 0.5,
+  "wait": 1.0
+}
+```
+
+规则：
+
+- `-o/--output` **显式指定时才保存**，默认不保存；保存时打印完整文件位置提示。
+- 回放用位置参数 `file` 加载预设；`-r` **必须**在命令行指定，预设**不保存**重复次数（重复次数随场合给定）。
+- CLI 显式给出的 `-d/-w` **覆盖**预设值；未给出时取预设值，无预设则 0。
+- `-s`（启动延时）、`-k`（停止键）、`-a`（自动启动）属执行环境，不入预设，始终走命令行。
 
 ## 录制回放 — Recorder.py
 

@@ -3,44 +3,56 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import os
 
 import pyautogui
-from Library.Base import StopControl, ValidateStopKey
+from Library.Base import GetPresetNumber, LoadPreset, SavePreset, StopControl, ValidateStopKey
 
 def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
   if parser is None:
     parser = argparse.ArgumentParser(description='Key press')
 
-  parser.add_argument('-n', '--num', type=int, default=0, help='Number of commands (interactive input mode)')
+  parser.add_argument('file', nargs='?', type=str, default=None,
+                      help='Preset JSON file to load (keys, delay, wait)')
+  parser.add_argument('-n', '--num', type=int, help='Number of commands (interactive input mode)')
   parser.add_argument('-l', '--list', type=str, default='', help='Comma-separated key list, e.g. "up,down,left,right"')
   parser.add_argument('-r', '--repeat', type=int, required=True, help='Number of repeat times, 0 for infinite loop')
-  parser.add_argument('-d', '--delay', type=float, default=0, help='Time(seconds) to wait between each command in commands list')
-  parser.add_argument('-w', '--wait', type=float, default=0, help='Time(seconds) to wait after executing the commands list once')
+  parser.add_argument('-d', '--delay', type=float, default=None,
+                      help='Time(seconds) between commands, default: 0 or preset value if not given')
+  parser.add_argument('-w', '--wait', type=float, default=None,
+                      help='Time(seconds) after one round, default: 0 or preset value if not given')
   parser.add_argument('-a', '--auto', action='store_true', default=False, help='Auto start key press without waiting for Enter')
   parser.add_argument('-s', '--start-delay', type=float, default=0, help='Time(seconds) to wait before starting key press')
   parser.add_argument('-k', '--stop-key', type=str, default='esc', help='Key to stop the key press (global hotkey), default: esc')
+  parser.add_argument('-o', '--output', type=str, default=None,
+                      help='Save the command list (+delay/wait) to a preset JSON file')
 
   return parser
 
 def ArgCheckKeyPress(args: argparse.Namespace) -> None:
   """参数校验"""
 
-  if args.num < 0:
-    raise ValueError('Invalid key command number (-n/--num)')
-  if args.num == 0 and not args.list:
-    raise ValueError('Either -n/--num or -l/--list must be provided')
-  if args.num > 0 and args.list:
-    raise ValueError('-n/--num and -l/--list are mutually exclusive')
+  num = args.num if args.num is not None else 0
+  if args.file is not None:
+    if num != 0 or args.list:
+      raise ValueError('-n/--num and -l/--list are mutually exclusive with a preset file')
+  else:
+    if num < 0:
+      raise ValueError('Invalid key command number (-n/--num)')
+    if num == 0 and not args.list:
+      raise ValueError('Either -n/--num or -l/--list must be provided')
+    if num > 0 and args.list:
+      raise ValueError('-n/--num and -l/--list are mutually exclusive')
   if args.list:
     for key in args.list.split(','):
       if not pyautogui.isValidKey(key):
         raise ValueError(f'Invalid key: {key}')
   if args.repeat < 0:
     raise ValueError('Invalid repeat times (-r/--repeat), 0 for infinite loop')
-  if args.delay < 0:
+  if args.delay is not None and args.delay < 0:
     raise ValueError('Invalid delay time (-d/--delay)')
-  if args.wait < 0:
+  if args.wait is not None and args.wait < 0:
     raise ValueError('Invalid wait time (-w/--wait)')
   if args.start_delay < 0:
     raise ValueError('Invalid start delay time (-s/--start-delay)')
@@ -119,13 +131,33 @@ def main():
     argParse = ArgParseKeyPressInit(None)
     args = argParse.parse_args()
     ArgCheckKeyPress(args)
-    # 生成按键列表
-    if args.list:
+    # 生成按键列表：预设文件 > -l 列表 > 交互输入
+    preset = {}
+    if args.file is not None:
+      preset = LoadPreset(args.file, 'keypress')
+      keyList = preset.get('keys', [])
+      if (not isinstance(keyList, list)
+          or not all(isinstance(k, str) and pyautogui.isValidKey(k) for k in keyList)):
+        raise ValueError(f'Invalid keys in preset file: {args.file}')
+      print(f'Loaded preset from {os.path.abspath(args.file)}: {len(keyList)} key(s)')
+    elif args.list:
       keyList = args.list.split(',')
     else:
       keyList = GetKeyList(args.num)
+    # 节奏参数：CLI 显式值优先，否则取预设值，默认 0
+    delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', 0)
+    wait = args.wait if args.wait is not None else GetPresetNumber(preset, 'wait', 0)
+    # 仅显式指定 -o 时保存预设
+    if args.output is not None:
+      SavePreset(args.output, {
+        'version': 1,
+        'type': 'keypress',
+        'keys': keyList,
+        'delay': delay,
+        'wait': wait,
+      })
     # 开始执行按键命令
-    RunPress(keyList, args.auto, args.start_delay, args.repeat, args.delay, args.wait, args.stop_key.lower())
+    RunPress(keyList, args.auto, args.start_delay, args.repeat, delay, wait, args.stop_key.lower())
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:
