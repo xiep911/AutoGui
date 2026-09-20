@@ -99,9 +99,6 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
       print('pynput not installed, press enter to start the key press...')
       input()
 
-  # 激活目标窗口: 部分窗口失焦后需要一次激活
-  pyautogui.click()
-
   # 执行前等待
   pyautogui.sleep(startDelay)
 

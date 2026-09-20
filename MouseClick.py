@@ -123,13 +123,6 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
       print('pynput not installed, press enter to start the clicks...')
       input()
 
-  # 移动到目标位置，防止激活时处于窗口外
-  if positionList is not None and len(positionList) > 0:
-    pyautogui.moveTo(positionList[0][0], positionList[0][1])
-
-  # 激活目标窗口: 部分窗口失焦后需要一次激活
-  pyautogui.click()
-
   # 执行前等待
   pyautogui.sleep(startDelay)
 
