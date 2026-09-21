@@ -171,6 +171,57 @@ def ValidateStartKey(startKey: str) -> None:
   if not pyautogui.isValidKey(startKey):
     raise ValueError(f'Invalid start key: {startKey}')
 
+class PauseControl:
+  """暂停/继续 切换热键：命中热键即翻转暂停状态（再按一次恢复）；key 为 None 时不监听（禁用）"""
+
+  def __init__(self, key: str | None) -> None:
+    self.key = key
+    self._Paused = threading.Event()
+    self._listener = None
+    if key is None:
+      return
+    self._listener = pynput_keyboard.Listener(on_press=self.OnPress)
+    self._listener.daemon = True
+    self._listener.start()
+
+  def OnPress(self, key) -> None:
+    """监听回调：命中热键时切换（toggle）暂停状态"""
+    name = ToStopKeyName(key)
+    if name is not None and CanonKey(name) == CanonKey(self.key):
+      if self._Paused.is_set():
+        self._Paused.clear()
+        print('Resumed.')
+      else:
+        self._Paused.set()
+        print(f'Paused. Press [{self.key}] to resume.')
+
+  def Paused(self) -> bool:
+    """是否处于暂停状态"""
+    return self._Paused.is_set()
+
+  def Stop(self) -> None:
+    """停止后台监听"""
+    if self._listener is not None:
+      self._listener.stop()
+
+def ValidatePauseKey(pauseKey: str | None, startKey: str, stopKey: str) -> None:
+  """校验暂停热键：合法键名，且不得与开始键/终止键相同（-k3 撞 -k1/-k2 会导致行为混乱）"""
+  if pauseKey is None:
+    return
+  if pauseKey.isdigit():  # 允许单个数字字符键（如 "9"）
+    if len(pauseKey) != 1:
+      raise ValueError(f'Invalid pause key: {pauseKey}')
+  elif not pyautogui.isValidKey(pauseKey):
+    raise ValueError(f'Invalid pause key: {pauseKey}')
+  if (CanonKey(pauseKey) == CanonKey(startKey) or CanonKey(pauseKey) == CanonKey(stopKey)):
+    raise ValueError(f'Pause key ({pauseKey}) must differ from start key ({startKey}) and stop key ({stopKey})')
+
+def ValidateDistinctHotkeys(startKey: str, stopKey: str) -> None:
+  """校验开始热键与结束热键必须不同（归一化比较，能识别 esc/escape 等别名）；
+  相同键会同时触发开始与结束，导致行为混乱，故禁止"""
+  if CanonKey(startKey) == CanonKey(stopKey):
+    raise ValueError(f'Start key ({startKey}) and stop key ({stopKey}) must differ')
+
 # --- 参数预设文件（KeyPress/MouseClick 的录制与回放） ---
 
 def LoadPreset(path: str, expectedType: str) -> dict:

@@ -2,9 +2,13 @@
 #
 # SPDX-License-Identifier: MIT
 
+import os
+import sys
+# 允许 Scripts/ 下脚本被直接运行时不破坏 Library 导入（repo 根目录入 sys.path）
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import argparse
 import json
-import sys
 import time
 
 try:
@@ -16,7 +20,8 @@ except ImportError as e:
   print('Run: pip install -r requirements.txt')
   sys.exit(1)
 
-from Library.Base import CanonKey, StartControl, StopControl, ToKeyName, ValidateStartKey, ValidateStopKey
+from Library.Base import (CanonKey, PauseControl, StartControl, StopControl, ToKeyName,
+                          ValidateDistinctHotkeys, ValidatePauseKey, ValidateStartKey, ValidateStopKey)
 
 def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -49,7 +54,9 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
   rep.add_argument('-w', '--wait', type=float, default=0,
                    help='Time(seconds) to wait between each replay round, default: 0')
   rep.add_argument('-k2', '--stop-key', type=str, default='esc',
-                   help='Key to stop the replay (global hotkey), default: esc')
+                   help='Key to stop and end the replay (global hotkey), default: esc')
+  rep.add_argument('-k3', '--pause-key', type=str, default=None,
+                   help='Key to toggle pause/resume during the loop (global hotkey), default: disabled')
   rep.add_argument('--speed', type=float, default=1.0,
                    help='Replay speed multiplier, e.g. 2 means 2x faster, default: 1.0')
 
@@ -60,6 +67,7 @@ def ArgCheckRecorder(args: argparse.Namespace) -> None:
   if args.command == 'record':
     ValidateStartKey(args.start_key.lower())
     ValidateStopKey(args.stop_key.lower())
+    ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
     if args.start_delay < 0:
       raise ValueError('Invalid start delay time (-s/--start-delay)')
   elif args.command == 'replay':
@@ -73,6 +81,9 @@ def ArgCheckRecorder(args: argparse.Namespace) -> None:
       raise ValueError('Invalid replay speed (--speed)')
     ValidateStartKey(args.start_key.lower())
     ValidateStopKey(args.stop_key.lower())
+    ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
+    ValidatePauseKey(args.pause_key.lower() if args.pause_key is not None else None,
+                     args.start_key.lower(), args.stop_key.lower())
 
 def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stopKey: str) -> None:
   """录制用户操作"""
@@ -176,7 +187,7 @@ def DispatchEvent(event: dict) -> None:
   except Exception as e:
     print(f'Warning: failed to replay {etype}: {e}')
 
-def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay: float, wait: float, speed: float, stopKey: str) -> None:
+def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay: float, wait: float, speed: float, stopKey: str, pauseKey: str | None = None) -> None:
   """按录制延时回放"""
   with open(recFile, 'r', encoding='utf-8') as f:
     data = json.load(f)
@@ -191,53 +202,93 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
     prevT = events[i - 1].get('t', 0.0) if i > 0 else 0.0
     delays.append(ev.get('t', 0.0) - prevT)
 
-  # 是否自动执行：-a 时直接开始，否则等待开始热键（全局监听，终端失焦也能触发）
+  # 后台监听停止热键，终端失焦时也能停止；等待开始阶段即生效（按停止键=放弃本次执行）
+  stopControl = StopControl(stopKey)
+  print(f'Press [{stopKey}] to stop.')
+
+  # 是否自动执行：-a 时直接开始，否则等待开始热键（或按停止键放弃）
   if not autoStart:
     startControl = StartControl(startKey)
-    print(f'Press [{startKey}] to start replay.')
-    startControl.WaitStarted()
-    startControl.Stop()
+    if startControl.Available():
+      print(f'Press [{startKey}] to start replay.')
+      # 等待开始或放弃：开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
+      while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
+        pass
+      startControl.Stop()
+      if stopControl.Stopped():
+        stopControl.Stop()
+        print(f'Aborted before start by [{stopKey}].')
+        return
+    else:
+      print('pynput not installed, press enter to start the replay...')
+      input()
 
   # 开始键按下后的缓冲（-s），切入目标窗口用，结束前不执行任何操作
   if startDelay > 0:
     print(f'Replay will start in {startDelay} seconds...')
     time.sleep(startDelay)
 
-  # 后台监听停止热键，终端失焦时也能停止
-  stopControl = StopControl(stopKey)
-  print(f'Press [{stopKey}] to stop.')
+  # 暂停/继续 切换监听（-k3，默认关闭）
+  pauseControl = PauseControl(pauseKey) if pauseKey is not None else None
 
   if repeat == 0:
-    print('Replaying in infinite loop, Ctrl+C to stop...')
+    print('Replaying in infinite loop, Ctrl+C (terminal focused) to stop...')
 
   # target 跨轮连续累积，now 以同一时钟衡量：避免累计 sleep 的漂移，
   # 也保证第 2 轮起的每一轮都严格按录制节奏执行
   t0 = time.monotonic()
   target = 0.0
   roundCount = 0
+  pausedAt: float | None = None
+
+  def HandlePause() -> bool:
+    """暂停期间冻结调度时钟（恢复后事件不会"追帧"快进）；返回 True 表示已按下停止键需退出"""
+    nonlocal pausedAt, t0
+    while pauseControl is not None and pauseControl.Paused():
+      if stopControl.Stopped():
+        return True
+      if pausedAt is None:
+        pausedAt = time.monotonic()
+      time.sleep(0.02)
+    if pausedAt is not None:
+      t0 += time.monotonic() - pausedAt
+      pausedAt = None
+    return False
+
+  def SleepResponsive(seconds: float) -> bool:
+    """分片睡眠并响应暂停/停止（-k3/-k2 全局热键，失焦也能按）；返回 True 表示需退出"""
+    deadline = time.monotonic() - t0 + seconds
+    while time.monotonic() - t0 < deadline:
+      if HandlePause() or stopControl.Stopped():
+        return True
+      time.sleep(0.05)
+    return False
+
   while True:
     for ev, dly in zip(events, delays):
-      if stopControl.Stopped():
+      if HandlePause() or stopControl.Stopped():
         break
       target += dly / speed
-      now = time.monotonic() - t0
-      if target > now:
-        time.sleep(target - now)
+      if SleepResponsive(target - (time.monotonic() - t0)):
+        break
+      if stopControl.Stopped():
+        break
       DispatchEvent(ev)
     roundCount += 1
     if stopControl.Stopped():
       break
     if repeat > 0 and roundCount >= repeat:
       break
-    # 轮间等待：并入同一个调度时钟，下一轮自动顺延
+    # 轮间等待：并入同一个调度时钟，下一轮自动顺延；暂停同样冻结调度
     if wait > 0:
       target += wait
-      now = time.monotonic() - t0
-      if target > now:
-        time.sleep(target - now)
+      if SleepResponsive(wait):
+        break
     if stopControl.Stopped():
       break
   stopControl.Stop()
+  if pauseControl is not None:
+    pauseControl.Stop()
   if stopControl.Stopped():
     print(f'Stopped by [{stopKey}] after {roundCount} round(s).')
   else:
@@ -252,7 +303,9 @@ def main() -> None:
     if args.command == 'record':
       Record(args.output, args.auto, args.start_key.lower(), args.start_delay, CanonKey(args.stop_key.lower()))
     else:
-      Replay(args.file, args.repeat, args.auto, args.start_key.lower(), args.start_delay, args.wait, args.speed, CanonKey(args.stop_key.lower()))
+      pauseKey = args.pause_key.lower() if args.pause_key is not None else None
+      Replay(args.file, args.repeat, args.auto, args.start_key.lower(), args.start_delay, args.wait,
+             args.speed, CanonKey(args.stop_key.lower()), pauseKey)
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:

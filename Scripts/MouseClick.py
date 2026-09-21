@@ -2,11 +2,17 @@
 #
 # SPDX-License-Identifier: MIT
 
-import argparse
 import os
+import sys
+# 允许 Scripts/ 下脚本被直接运行时不破坏 Library 导入（repo 根目录入 sys.path）
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import argparse
 
 import pyautogui
-from Library.Base import DEFAULT_DELAY, GetPresetNumber, LoadPreset, SavePreset, StartControl, StopControl, ValidateStartKey, ValidateStopKey
+from Library.Base import (DEFAULT_DELAY, GetPresetNumber, LoadPreset, PauseControl, SavePreset,
+                          StartControl, StopControl, ValidateDistinctHotkeys, ValidatePauseKey,
+                          ValidateStartKey, ValidateStopKey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -34,7 +40,9 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
   parser.add_argument('-k1', '--start-key', type=str, default='enter',
                       help='Key to press to start the clicks (global hotkey), default: enter; ignored with -a/--auto')
-  parser.add_argument('-k2', '--stop-key', type=str, default='esc', help='Key to stop the clicks (global hotkey), default: esc')
+  parser.add_argument('-k2', '--stop-key', type=str, default='esc', help='Key to stop and end the clicks (global hotkey), default: esc')
+  parser.add_argument('-k3', '--pause-key', type=str, default=None,
+                      help='Key to toggle pause/resume during the loop (global hotkey), default: disabled')
   parser.add_argument('-o', '--output', type=str, default=None,
                       help='Save the click commands (+positions/delay/wait) to a preset JSON file')
 
@@ -70,6 +78,9 @@ def ArgCheckMouseClick(args: argparse.Namespace) -> None:
     raise ValueError('Invalid start delay time (-s/--start-delay)')
   ValidateStartKey(args.start_key.lower())
   ValidateStopKey(args.stop_key.lower())
+  ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
+  ValidatePauseKey(args.pause_key.lower() if args.pause_key is not None else None,
+                   args.start_key.lower(), args.stop_key.lower())
 
 def GetClickList(num: int) -> list:
   """获取点击命令列表（返回 1/2/3 数字，运行时映射到点击函数）"""
@@ -107,18 +118,28 @@ def GetPositionList(num: int) -> list:
     print(f'Captured position: ({x}, {y})')
   return positionList
 
-def RunClick(clickList: list, positionList: list | None, startDelay: float, startKey: str | None, repeat: int, delay: float, wait: float, stopKey: str) -> None:
+def RunClick(clickList: list, positionList: list | None, startDelay: float, startKey: str | None, repeat: int, delay: float, wait: float, stopKey: str, pauseKey: str | None = None) -> None:
   """运行点击命令"""
   import time
 
-  # 是否自动执行：-a 时传入的 startKey 为 None 直接开始，否则等待开始热键
+  # 后台监听停止热键，终端失焦时也能停止；等待开始阶段即生效（按停止键=放弃本次执行）
+  stopControl = StopControl(stopKey)
+  print(f'Press [{stopKey}] to stop.')
+
+  # 是否自动执行：-a 时传入的 startKey 为 None 直接开始，否则等待开始热键（或按停止键放弃）
   if startKey is not None:
     # 等待开始热键（全局监听，终端失焦也能触发，可在目标窗口就绪后按下）
     startControl = StartControl(startKey)
     if startControl.Available():
       print(f'Press [{startKey}] to start clicks.')
-      startControl.WaitStarted()
+      # 等待开始或放弃：开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
+      while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
+        pass
       startControl.Stop()
+      if stopControl.Stopped():
+        stopControl.Stop()
+        print(f'Aborted before start by [{stopKey}].')
+        return
     else:
       print('pynput not installed, press enter to start the clicks...')
       input()
@@ -126,17 +147,21 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
   # 执行前等待
   pyautogui.sleep(startDelay)
 
-  # 后台监听停止热键，终端失焦时也能停止
-  stopControl = StopControl(stopKey)
-  print(f'Press [{stopKey}] to stop.')
+  # 暂停/继续 切换监听（-k3，默认关闭）
+  pauseControl = PauseControl(pauseKey) if pauseKey is not None else None
 
   if repeat == 0:
-    print('Clicking in infinite loop, Ctrl+C to stop...')
+    print('Clicking in infinite loop, Ctrl+C (terminal focused) to stop...')
 
   roundCount = 0
   while True:
     roundCount += 1
     for j in range(len(clickList)):
+      # 暂停期间阻塞等待恢复或结束
+      while pauseControl is not None and pauseControl.Paused():
+        if stopControl.Stopped():
+          break
+        time.sleep(0.05)
       if stopControl.Stopped():
         break
       if positionList is not None:
@@ -159,6 +184,8 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
     if repeat > 0 and roundCount >= repeat:
       break
   stopControl.Stop()
+  if pauseControl is not None:
+    pauseControl.Stop()
   if stopControl.Stopped():
     print(f'Stopped by [{stopKey}] after {roundCount} round(s).')
 
@@ -207,7 +234,8 @@ def main():
       })
     # 开始执行点击命令：-a 时关闭开始热键等待，否则等 start-key（默认 enter）按下
     startKey = None if args.auto else args.start_key.lower()
-    RunClick(clickList, positionList, args.start_delay, startKey, args.repeat, delay, wait, args.stop_key.lower())
+    pauseKey = args.pause_key.lower() if args.pause_key is not None else None
+    RunClick(clickList, positionList, args.start_delay, startKey, args.repeat, delay, wait, args.stop_key.lower(), pauseKey)
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
   except Exception as e:
