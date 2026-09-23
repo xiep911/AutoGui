@@ -11,8 +11,8 @@ import argparse
 
 import pyautogui
 from Library.Base import (DEFAULT_DELAY, GetPresetNumber, LoadPreset, PauseControl, SavePreset,
-                          StartControl, StopControl, ValidateDistinctHotkeys, ValidatePauseKey,
-                          ValidateStartKey, ValidateStopKey)
+                          SleepResponsive, StartControl, StopControl, ValidateDistinctHotkeys,
+                          ValidatePauseKey, ValidateStartKey, ValidateStopKey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -155,7 +155,6 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
 
   roundCount = 0
   while True:
-    roundCount += 1
     for j in range(len(clickList)):
       # 暂停期间阻塞等待恢复或结束
       while pauseControl is not None and pauseControl.Paused():
@@ -176,10 +175,12 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
       else:
         # delay 注入 interval，轮末最后一条 interval=0 消除 delay+wait 叠加
         opt(interval=0.0 if last else delay)
+    # 中途被停止键打断的未完成轮不计入轮数
     if stopControl.Stopped():
       break
-    time.sleep(wait)
-    if stopControl.Stopped():
+    roundCount += 1
+    # 轮间等待：分片睡眠并响应 -k2 停止 / -k3 暂停（全局热键，失焦也能按）
+    if wait > 0 and SleepResponsive(wait, stopControl, pauseControl):
       break
     if repeat > 0 and roundCount >= repeat:
       break
@@ -188,6 +189,8 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
     pauseControl.Stop()
   if stopControl.Stopped():
     print(f'Stopped by [{stopKey}] after {roundCount} round(s).')
+  else:
+    print(f'Clicks finished: {roundCount} round(s).')
 
 def main():
   """主函数"""
@@ -217,6 +220,8 @@ def main():
         clickList = [int(c) for c in args.list.split(',')]
       else:
         clickList = GetClickList(args.num)
+      if not clickList:  # 空列表 + -r 0 会无限空转，直接报错
+        raise ValueError('Empty click list')
       # 生成鼠标点击的位置列表
       positionList = GetPositionList(len(clickList)) if args.move else None
     # 节奏参数：CLI 显式值优先，否则取预设值，默认 0

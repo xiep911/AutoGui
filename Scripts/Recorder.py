@@ -101,12 +101,21 @@ def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stop
 
   events = []
   stopped = False
+  heldKeys: set[str] = set()
+  heldButtons: set[str] = set()
 
   def onClick(x: int, y: int, button, pressed: bool) -> None:
+    name = getattr(button, 'name', str(button))
+    if pressed:
+      heldButtons.add(name)
+    elif name in heldButtons:  # 停止时补记 up 后，未记录 down 的 up 不再产生
+      heldButtons.discard(name)
+    else:
+      return
     events.append({
       't': time.perf_counter(),
       'type': 'down' if pressed else 'up',
-      'button': getattr(button, 'name', str(button)),
+      'button': name,
       'x': x, 'y': y
     })
 
@@ -122,8 +131,17 @@ def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stop
       stopped = True
       kbListener.stop()
       mouseListener.stop()
+      # 补记停止瞬间仍在按住的键/鼠标键的抬起事件，避免回放时按键卡死
+      for k in heldKeys:
+        events.append({'t': time.perf_counter(), 'type': 'keyup', 'key': k})
+      heldKeys.clear()
+      x, y = pyautogui.position()
+      for b in heldButtons:
+        events.append({'t': time.perf_counter(), 'type': 'up', 'button': b, 'x': x, 'y': y})
+      heldButtons.clear()
       return
     if not stopped and name is not None:
+      heldKeys.add(name)
       events.append({'t': time.perf_counter(), 'type': 'keydown', 'key': name})
 
   def onRelease(key) -> None:
@@ -131,6 +149,7 @@ def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stop
       return
     name = ToKeyName(key)
     if name is not None:
+      heldKeys.discard(name)
       events.append({'t': time.perf_counter(), 'type': 'keyup', 'key': name})
 
   kbListener = pynput_keyboard.Listener(on_press=onPress, on_release=onRelease)
@@ -164,6 +183,43 @@ def Record(outFile: str, autoStart: bool, startKey: str, startDelay: float, stop
 
   print(f'Saved {len(events)} events to {outFile}')
 
+EVENT_TYPES = ('down', 'up', 'scroll', 'keydown', 'keyup')
+
+def LoadRecording(path: str) -> dict:
+  """加载录制文件，校验 version 与每条事件的结构（与 LoadPreset 同样的严格风格）；非法时抛 ValueError。"""
+  try:
+    with open(path, 'r', encoding='utf-8') as f:
+      data = json.load(f)
+  except OSError:
+    raise ValueError(f'Cannot open recording file: {path}')
+  except json.JSONDecodeError:
+    raise ValueError(f'Invalid JSON in recording file: {path}')
+  if not isinstance(data, dict) or data.get('version') != 1:
+    raise ValueError(f'Unsupported recording file (version): {path}')
+  events = data.get('events')
+  if not isinstance(events, list):
+    raise ValueError(f'Invalid events in recording file: {path}')
+  for ev in events:
+    if not isinstance(ev, dict):
+      raise ValueError(f'Invalid event in recording file: {path}')
+    etype = ev.get('type')
+    if etype not in EVENT_TYPES:
+      raise ValueError(f'Unknown event type in recording file {path}: {etype!r}')
+    if isinstance(ev.get('t'), bool) or not isinstance(ev.get('t'), (int, float)):
+      raise ValueError(f'Invalid event time in recording file: {path}')
+    if etype in ('down', 'up'):
+      if not isinstance(ev.get('button'), str):
+        raise ValueError(f'Invalid event button in recording file: {path}')
+    elif etype in ('keydown', 'keyup'):
+      if not isinstance(ev.get('key'), str):
+        raise ValueError(f'Invalid event key in recording file: {path}')
+    elif etype == 'scroll':
+      if isinstance(ev.get('dy'), bool) or not isinstance(ev.get('dy'), (int, float)):
+        raise ValueError(f'Invalid event dy in recording file: {path}')
+  # 与 Record 存盘前一致，按时间排序保证回放节奏正确
+  events.sort(key=lambda e: e['t'])
+  return data
+
 def DispatchEvent(event: dict) -> None:
   """回放一条事件"""
   etype = event.get('type')
@@ -189,8 +245,7 @@ def DispatchEvent(event: dict) -> None:
 
 def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay: float, wait: float, speed: float, stopKey: str, pauseKey: str | None = None) -> None:
   """按录制延时回放"""
-  with open(recFile, 'r', encoding='utf-8') as f:
-    data = json.load(f)
+  data = LoadRecording(recFile)
   events = data.get('events', [])
   if not events:
     print(f'No events found in {recFile}')
@@ -274,9 +329,10 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
       if stopControl.Stopped():
         break
       DispatchEvent(ev)
-    roundCount += 1
+    # 中途被停止键打断的未完成轮不计入轮数
     if stopControl.Stopped():
       break
+    roundCount += 1
     if repeat > 0 and roundCount >= repeat:
       break
     # 轮间等待：并入同一个调度时钟，下一轮自动顺延；暂停同样冻结调度

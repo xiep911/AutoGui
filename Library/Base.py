@@ -5,6 +5,7 @@
 import json
 import os
 import threading
+import time
 
 import pyautogui
 
@@ -221,6 +222,20 @@ def ValidateDistinctHotkeys(startKey: str, stopKey: str) -> None:
   相同键会同时触发开始与结束，导致行为混乱，故禁止"""
   if CanonKey(startKey) == CanonKey(stopKey):
     raise ValueError(f'Start key ({startKey}) and stop key ({stopKey}) must differ')
+
+def SleepResponsive(seconds: float, stopControl: StopControl, pauseControl: PauseControl | None) -> bool:
+  """分片睡眠并响应暂停/停止热键（-k3/-k2 全局热键，失焦也能按）；
+  暂停期间继续分片等待（仍响应停止键）；返回 True 表示应退出循环"""
+  deadline = time.monotonic() + seconds
+  while time.monotonic() < deadline:
+    while pauseControl is not None and pauseControl.Paused():
+      if stopControl.Stopped():
+        return True
+      time.sleep(0.05)
+    if stopControl.Stopped():
+      return True
+    time.sleep(0.05)
+  return False
 
 # --- 参数预设文件（KeyPress/MouseClick 的录制与回放） ---
 

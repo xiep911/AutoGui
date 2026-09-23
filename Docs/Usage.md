@@ -26,7 +26,7 @@ python Main.py replay demo.json -r 0 --speed 2
 python Main.py record -o demo.json -k1 f2
 ```
 
-参数原样透传给对应脚本（校验与帮助由脚本自己负责，可用 `python Main.py keypress -h` 查看）。`python Main.py -l/--list` 列出功能。
+参数原样透传给对应脚本（校验与帮助由脚本自己负责，可用 `python Main.py keypress -h` 查看）。`python Main.py -h` 查看功能列表。
 
 ## 三态热键（开始 / 暂停 / 结束）
 

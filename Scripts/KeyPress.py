@@ -11,8 +11,8 @@ import argparse
 
 import pyautogui
 from Library.Base import (DEFAULT_DELAY, GetPresetNumber, LoadPreset, PauseControl, SavePreset,
-                          StartControl, StopControl, ValidateDistinctHotkeys, ValidatePauseKey,
-                          ValidateStartKey, ValidateStopKey)
+                          SleepResponsive, StartControl, StopControl, ValidateDistinctHotkeys,
+                          ValidatePauseKey, ValidateStartKey, ValidateStopKey)
 
 def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -131,7 +131,6 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
 
   roundCount = 0
   while True:
-    roundCount += 1
     for j in range(len(keyList)):
       # 暂停期间阻塞等待恢复或结束
       while pauseControl is not None and pauseControl.Paused():
@@ -142,10 +141,12 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
         break
       # delay 注入 pyautogui interval（轮末最后一条 interval=0 以消除 delay+wait 叠加，wait 为纯轮间间隔）
       pyautogui.press(keyList[j], presses=1, interval=0.0 if j == len(keyList) - 1 else delay)
+    # 中途被停止键打断的未完成轮不计入轮数
     if stopControl.Stopped():
       break
-    time.sleep(wait)
-    if stopControl.Stopped():
+    roundCount += 1
+    # 轮间等待：分片睡眠并响应 -k2 停止 / -k3 暂停（全局热键，失焦也能按）
+    if wait > 0 and SleepResponsive(wait, stopControl, pauseControl):
       break
     if repeat > 0 and roundCount >= repeat:
       break
@@ -154,6 +155,8 @@ def RunPress(keyList: list[str], startDelay: float, startKey: str | None, repeat
     pauseControl.Stop()
   if stopControl.Stopped():
     print(f'Stopped by [{stopKey}] after {roundCount} round(s).')
+  else:
+    print(f'Key press finished: {roundCount} round(s).')
 
 def main():
   """主函数"""
@@ -175,6 +178,8 @@ def main():
       keyList = args.list.split(',')
     else:
       keyList = GetKeyList(args.num)
+    if not keyList:  # 空列表 + -r 0 会无限空转，直接报错
+      raise ValueError('Empty key list')
     # 节奏参数：CLI 显式值优先，否则取预设值，默认 0
     delay = args.delay if args.delay is not None else GetPresetNumber(preset, 'delay', DEFAULT_DELAY)
     wait = args.wait if args.wait is not None else GetPresetNumber(preset, 'wait', 0)

@@ -177,7 +177,7 @@ def main() -> int:
   argv = sys.argv[1:]
   if not argv:
     return MenuLoop()
-  if argv[0] in ('-h', '--help', '-l', '--list'):
+  if argv[0] in ('-h', '--help'):
     print('用法: python Main.py [功能] [脚本参数...]   （无参数时进入交互菜单）')
     print('功能列表:')
     PrintFunctions()
