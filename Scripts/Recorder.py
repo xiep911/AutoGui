@@ -21,7 +21,7 @@ except ImportError as e:
   sys.exit(1)
 
 from Library.Base import (CanonKey, PauseControl, StartControl, StopControl, ToKeyName,
-                          ValidateDistinctHotkeys, ValidatePauseKey, ValidateStartKey, ValidateStopKey)
+                          ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey, WaitStartHotkey)
 
 def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
@@ -65,8 +65,8 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
 def ArgCheckRecorder(args: argparse.Namespace) -> None:
   """参数校验"""
   if args.command == 'record':
-    ValidateStartKey(args.start_key.lower())
-    ValidateStopKey(args.stop_key.lower())
+    ValidateHotkey(args.start_key.lower(), 'start')
+    ValidateHotkey(args.stop_key.lower(), 'stop')
     ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
     if args.start_delay < 0:
       raise ValueError('Invalid start delay time (-s/--start-delay)')
@@ -79,8 +79,8 @@ def ArgCheckRecorder(args: argparse.Namespace) -> None:
       raise ValueError('Invalid wait time (-w/--wait)')
     if args.speed <= 0:
       raise ValueError('Invalid replay speed (--speed)')
-    ValidateStartKey(args.start_key.lower())
-    ValidateStopKey(args.stop_key.lower())
+    ValidateHotkey(args.start_key.lower(), 'start')
+    ValidateHotkey(args.stop_key.lower(), 'stop')
     ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
     ValidatePauseKey(args.pause_key.lower() if args.pause_key is not None else None,
                      args.start_key.lower(), args.stop_key.lower())
@@ -263,20 +263,8 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
 
   # 是否自动执行：-a 时直接开始，否则等待开始热键（或按停止键放弃）
   if not autoStart:
-    startControl = StartControl(startKey)
-    if startControl.Available():
-      print(f'Press [{startKey}] to start replay.')
-      # 等待开始或放弃：开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
-      while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
-        pass
-      startControl.Stop()
-      if stopControl.Stopped():
-        stopControl.Stop()
-        print(f'Aborted before start by [{stopKey}].')
-        return
-    else:
-      print('pynput not installed, press enter to start the replay...')
-      input()
+    if not WaitStartHotkey(startKey, stopControl, 'replay'):
+      return
 
   # 开始键按下后的缓冲（-s），切入目标窗口用，结束前不执行任何操作
   if startDelay > 0:

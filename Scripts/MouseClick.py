@@ -4,6 +4,7 @@
 
 import os
 import sys
+import time
 # 允许 Scripts/ 下脚本被直接运行时不破坏 Library 导入（repo 根目录入 sys.path）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -11,8 +12,8 @@ import argparse
 
 import pyautogui
 from Library.Base import (DEFAULT_DELAY, GetPresetNumber, LoadPreset, PauseControl, SavePreset,
-                          SleepResponsive, StartControl, StopControl, ValidateDistinctHotkeys,
-                          ValidatePauseKey, ValidateStartKey, ValidateStopKey)
+                          SleepResponsive, StopControl, ValidateDistinctHotkeys, ValidateHotkey,
+                          ValidatePauseKey, WaitResumeOrStop, WaitStartHotkey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -76,8 +77,8 @@ def ArgCheckMouseClick(args: argparse.Namespace) -> None:
     raise ValueError('Invalid wait time (-w/--wait)')
   if args.start_delay < 0:
     raise ValueError('Invalid start delay time (-s/--start-delay)')
-  ValidateStartKey(args.start_key.lower())
-  ValidateStopKey(args.stop_key.lower())
+  ValidateHotkey(args.start_key.lower(), 'start')
+  ValidateHotkey(args.stop_key.lower(), 'stop')
   ValidateDistinctHotkeys(args.start_key.lower(), args.stop_key.lower())
   ValidatePauseKey(args.pause_key.lower() if args.pause_key is not None else None,
                    args.start_key.lower(), args.stop_key.lower())
@@ -120,29 +121,14 @@ def GetPositionList(num: int) -> list:
 
 def RunClick(clickList: list, positionList: list | None, startDelay: float, startKey: str | None, repeat: int, delay: float, wait: float, stopKey: str, pauseKey: str | None = None) -> None:
   """运行点击命令"""
-  import time
-
   # 后台监听停止热键，终端失焦时也能停止；等待开始阶段即生效（按停止键=放弃本次执行）
   stopControl = StopControl(stopKey)
   print(f'Press [{stopKey}] to stop.')
 
   # 是否自动执行：-a 时传入的 startKey 为 None 直接开始，否则等待开始热键（或按停止键放弃）
   if startKey is not None:
-    # 等待开始热键（全局监听，终端失焦也能触发，可在目标窗口就绪后按下）
-    startControl = StartControl(startKey)
-    if startControl.Available():
-      print(f'Press [{startKey}] to start clicks.')
-      # 等待开始或放弃：开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
-      while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
-        pass
-      startControl.Stop()
-      if stopControl.Stopped():
-        stopControl.Stop()
-        print(f'Aborted before start by [{stopKey}].')
-        return
-    else:
-      print('pynput not installed, press enter to start the clicks...')
-      input()
+    if not WaitStartHotkey(startKey, stopControl, 'clicks'):
+      return
 
   # 执行前等待
   pyautogui.sleep(startDelay)
@@ -157,11 +143,7 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
   while True:
     for j in range(len(clickList)):
       # 暂停期间阻塞等待恢复或结束
-      while pauseControl is not None and pauseControl.Paused():
-        if stopControl.Stopped():
-          break
-        time.sleep(0.05)
-      if stopControl.Stopped():
+      if WaitResumeOrStop(stopControl, pauseControl):
         break
       if positionList is not None:
         pyautogui.moveTo(positionList[j][0], positionList[j][1])

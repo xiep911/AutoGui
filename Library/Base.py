@@ -136,24 +136,16 @@ class StopControl:
     if self._listener is not None:
       self._listener.stop()
 
-def ValidateStopKey(stopKey: str) -> None:
-  """校验停止热键"""
-  if stopKey.isdigit():  # 允许单个数字字符键（如 "9"）
-    if len(stopKey) != 1:
-      raise ValueError(f'Invalid stop key: {stopKey}')
-    return
-  if not pyautogui.isValidKey(stopKey):
-    raise ValueError(f'Invalid stop key: {stopKey}')
+def ValidateHotkey(key: str, role: str) -> None:
+  """校验热键名（开始/停止/暂停通用）；不合法抛 ValueError"""
+  if not pyautogui.isValidKey(key):
+    raise ValueError(f'Invalid {role} key: {key}')
 
 class StartControl(StopControl):
   """后台全局热键监听：等待开始热键按下后开始执行（复用 StopControl 的监听逻辑）"""
 
   def __init__(self, startKey: str) -> None:
     super().__init__(startKey, label='start')
-
-  def Started(self) -> bool:
-    """是否已按下开始热键"""
-    return self.Stopped()
 
   def WaitStarted(self, timeout: float | None = None) -> bool:
     """阻塞直到开始热键按下（事件驱动，无需轮询）"""
@@ -162,15 +154,6 @@ class StartControl(StopControl):
   def Available(self) -> bool:
     """开始热键是否可用（依赖 pynput 全局监听）"""
     return self._listener is not None
-
-def ValidateStartKey(startKey: str) -> None:
-  """校验开始热键"""
-  if startKey.isdigit():  # 允许单个数字字符键（如 "9"）
-    if len(startKey) != 1:
-      raise ValueError(f'Invalid start key: {startKey}')
-    return
-  if not pyautogui.isValidKey(startKey):
-    raise ValueError(f'Invalid start key: {startKey}')
 
 class PauseControl:
   """暂停/继续 切换热键：命中热键即翻转暂停状态（再按一次恢复）；key 为 None 时不监听（禁用）"""
@@ -209,11 +192,7 @@ def ValidatePauseKey(pauseKey: str | None, startKey: str, stopKey: str) -> None:
   """校验暂停热键：合法键名，且不得与开始键/终止键相同（-k3 撞 -k1/-k2 会导致行为混乱）"""
   if pauseKey is None:
     return
-  if pauseKey.isdigit():  # 允许单个数字字符键（如 "9"）
-    if len(pauseKey) != 1:
-      raise ValueError(f'Invalid pause key: {pauseKey}')
-  elif not pyautogui.isValidKey(pauseKey):
-    raise ValueError(f'Invalid pause key: {pauseKey}')
+  ValidateHotkey(pauseKey, 'pause')
   if (CanonKey(pauseKey) == CanonKey(startKey) or CanonKey(pauseKey) == CanonKey(stopKey)):
     raise ValueError(f'Pause key ({pauseKey}) must differ from start key ({startKey}) and stop key ({stopKey})')
 
@@ -228,14 +207,39 @@ def SleepResponsive(seconds: float, stopControl: StopControl, pauseControl: Paus
   暂停期间继续分片等待（仍响应停止键）；返回 True 表示应退出循环"""
   deadline = time.monotonic() + seconds
   while time.monotonic() < deadline:
-    while pauseControl is not None and pauseControl.Paused():
-      if stopControl.Stopped():
-        return True
-      time.sleep(0.05)
+    if WaitResumeOrStop(stopControl, pauseControl):
+      return True
+    time.sleep(0.05)
+  return False
+
+def WaitResumeOrStop(stopControl: StopControl, pauseControl: PauseControl | None) -> bool:
+  """暂停期间阻塞等待恢复或结束（-k3 再按一次恢复，-k2 结束）；返回 True 表示应退出循环"""
+  if pauseControl is None:
+    return stopControl.Stopped()
+  while pauseControl.Paused():
     if stopControl.Stopped():
       return True
     time.sleep(0.05)
   return False
+
+def WaitStartHotkey(startKey: str, stopControl: StopControl, what: str) -> bool:
+  """等待开始热键（全局监听，终端失焦也能触发，可在目标窗口就绪后按下）；
+  期间按停止键 = 干净放弃本次执行；pynput 缺失时退化为回车开始；返回 False 表示已放弃"""
+  startControl = StartControl(startKey)
+  if not startControl.Available():
+    print(f'pynput not installed, press enter to start the {what}...')
+    input()
+    return True
+  print(f'Press [{startKey}] to start {what}.')
+  # 开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
+  while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
+    pass
+  startControl.Stop()
+  if stopControl.Stopped():
+    stopControl.Stop()
+    print(f'Aborted before start by [{stopControl.key}].')
+    return False
+  return True
 
 # --- 参数预设文件（KeyPress/MouseClick 的录制与回放） ---
 
