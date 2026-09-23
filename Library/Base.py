@@ -15,6 +15,15 @@ pyautogui.PAUSE = 0
 # 未指定 -d 且无预设时的每命令间隔（秒）
 DEFAULT_DELAY = 0.1
 
+# 开始/结束热键默认值（脚本 argparse 与 Main.py 模板共用）
+DEFAULT_START_KEY = 'enter'
+DEFAULT_STOP_KEY = 'esc'
+
+# 热键轮询/分片睡眠间隔（秒），暂停与等待阶段用
+POLL_INTERVAL = 0.05
+# 暂停冻结调度时钟时的细粒度轮询间隔（秒），Recorder 回放专用
+PAUSE_POLL_INTERVAL = 0.02
+
 try:
   from pynput import keyboard as pynput_keyboard
 except ImportError:
@@ -209,7 +218,7 @@ def SleepResponsive(seconds: float, stopControl: StopControl, pauseControl: Paus
   while time.monotonic() < deadline:
     if WaitResumeOrStop(stopControl, pauseControl):
       return True
-    time.sleep(0.05)
+    time.sleep(POLL_INTERVAL)
   return False
 
 def WaitResumeOrStop(stopControl: StopControl, pauseControl: PauseControl | None) -> bool:
@@ -219,7 +228,7 @@ def WaitResumeOrStop(stopControl: StopControl, pauseControl: PauseControl | None
   while pauseControl.Paused():
     if stopControl.Stopped():
       return True
-    time.sleep(0.05)
+    time.sleep(POLL_INTERVAL)
   return False
 
 def WaitStartHotkey(startKey: str, stopControl: StopControl, what: str) -> bool:
@@ -232,7 +241,7 @@ def WaitStartHotkey(startKey: str, stopControl: StopControl, what: str) -> bool:
     return True
   print(f'Press [{startKey}] to start {what}.')
   # 开始键事件驱动秒回，-k2 在等待阶段即生效（全局热键，失焦也能按）
-  while not startControl.WaitStarted(timeout=0.05) and not stopControl.Stopped():
+  while not startControl.WaitStarted(timeout=POLL_INTERVAL) and not stopControl.Stopped():
     pass
   startControl.Stop()
   if stopControl.Stopped():

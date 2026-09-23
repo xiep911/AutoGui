@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 
 import pyautogui
-from Library.Base import (DEFAULT_DELAY, GetPresetNumber, LoadPreset, PauseControl, SavePreset,
-                          SleepResponsive, StopControl, ValidateDistinctHotkeys, ValidateHotkey,
-                          ValidatePauseKey, WaitResumeOrStop, WaitStartHotkey)
+from Library.Base import (DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, GetPresetNumber,
+                          LoadPreset, PauseControl, SavePreset, SleepResponsive, StopControl,
+                          ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey,
+                          WaitResumeOrStop, WaitStartHotkey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -39,9 +40,9 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
                       help='Time(seconds) between clicks, default: 0.1 or preset value if not given')
   parser.add_argument('-w', '--wait', type=float, default=None,
                       help='Time(seconds) after one round, default: 0 or preset value if not given')
-  parser.add_argument('-k1', '--start-key', type=str, default='enter',
+  parser.add_argument('-k1', '--start-key', type=str, default=DEFAULT_START_KEY,
                       help='Key to press to start the clicks (global hotkey), default: enter; ignored with -a/--auto')
-  parser.add_argument('-k2', '--stop-key', type=str, default='esc', help='Key to stop and end the clicks (global hotkey), default: esc')
+  parser.add_argument('-k2', '--stop-key', type=str, default=DEFAULT_STOP_KEY, help='Key to stop and end the clicks (global hotkey), default: esc')
   parser.add_argument('-k3', '--pause-key', type=str, default=None,
                       help='Key to toggle pause/resume during the loop (global hotkey), default: disabled')
   parser.add_argument('-o', '--output', type=str, default=None,
@@ -156,6 +157,7 @@ def RunClick(clickList: list, positionList: list | None, startDelay: float, star
           time.sleep(delay)
       else:
         # delay 注入 interval，轮末最后一条 interval=0 消除 delay+wait 叠加
+        # 依赖 pyautogui 0.9.52+ 每次调用后必 sleep(interval)（requirements.txt 已锁最低版本）
         opt(interval=0.0 if last else delay)
     # 中途被停止键打断的未完成轮不计入轮数
     if stopControl.Stopped():

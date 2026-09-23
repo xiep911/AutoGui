@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 
+from Library.Base import DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY
+
 # 各功能 -> Scripts/ 下脚本 + 引导询问的参数模板（flag, 提示, 默认值, 类型）
 #  - flag 为 None 表示位置参数（如 replay 的 file）；类型 bool 时只追加开关（y/yes 设置，否则忽略）
 #  - 默认值 None 表示留空跳过该参数（用脚本自身的缺省，如 -d 由 KeyPress 回退到 0.1）
@@ -17,11 +19,11 @@ _FUNCTIONS = {
     'args': [
       ('-l', '按键列表，逗号分隔（如 a,d）', 'a,d', str),
       ('-r', '重复次数（0=无限循环）', '0', int),
-      ('-d', '命令间隔秒（回车=脚本默认 0.1）', None, float),
+      ('-d', f'命令间隔秒（回车=脚本默认 {DEFAULT_DELAY}）', None, float),
       ('-w', '轮间等待秒', '0', float),
-      ('-k1', '开始热键', 'enter', str),
+      ('-k1', '开始热键', DEFAULT_START_KEY, str),
       ('-k3', '暂停键（留空=禁用）', None, str),
-      ('-k2', '结束热键', 'esc', str),
+      ('-k2', '结束热键', DEFAULT_STOP_KEY, str),
     ],
   },
   'mouseclick': {
@@ -32,11 +34,11 @@ _FUNCTIONS = {
       ('-l', '点击列表，逗号分隔（1=左 2=双击 3=右）', '1', str),
       ('-m', '点击前移动鼠标到坐标？(y/n)', False, bool),
       ('-r', '重复次数（0=无限循环）', '0', int),
-      ('-d', '命令间隔秒（回车=脚本默认 0.1）', None, float),
+      ('-d', f'命令间隔秒（回车=脚本默认 {DEFAULT_DELAY}）', None, float),
       ('-w', '轮间等待秒', '0', float),
-      ('-k1', '开始热键', 'enter', str),
+      ('-k1', '开始热键', DEFAULT_START_KEY, str),
       ('-k3', '暂停键（留空=禁用）', None, str),
-      ('-k2', '结束热键', 'esc', str),
+      ('-k2', '结束热键', DEFAULT_STOP_KEY, str),
     ],
   },
   'record': {
@@ -46,9 +48,9 @@ _FUNCTIONS = {
     'args': [
       ('-o', '输出文件', 'recording.json', str),
       ('-a', '立即开始录制？(y/n)', False, bool),
-      ('-k1', '开始热键', 'enter', str),
+      ('-k1', '开始热键', DEFAULT_START_KEY, str),
       ('-s', '开始后缓冲秒', '0', float),
-      ('-k2', '停止录制热键', 'esc', str),
+      ('-k2', '停止录制热键', DEFAULT_STOP_KEY, str),
     ],
   },
   'replay': {
@@ -61,9 +63,9 @@ _FUNCTIONS = {
       ('-w', '轮间等待秒', '0', float),
       ('--speed', '回放倍速', '1.0', float),
       ('-a', '立即开始回放？(y/n)', False, bool),
-      ('-k1', '开始热键', 'enter', str),
+      ('-k1', '开始热键', DEFAULT_START_KEY, str),
       ('-k3', '暂停键（留空=禁用）', None, str),
-      ('-k2', '结束热键', 'esc', str),
+      ('-k2', '结束热键', DEFAULT_STOP_KEY, str),
     ],
   },
 }

@@ -20,7 +20,8 @@ except ImportError as e:
   print('Run: pip install -r requirements.txt')
   sys.exit(1)
 
-from Library.Base import (CanonKey, PauseControl, StartControl, StopControl, ToKeyName,
+from Library.Base import (CanonKey, DEFAULT_START_KEY, DEFAULT_STOP_KEY, PAUSE_POLL_INTERVAL,
+                          POLL_INTERVAL, PauseControl, StartControl, StopControl, ToKeyName,
                           ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey, WaitStartHotkey)
 
 def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
@@ -34,11 +35,11 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
                    help='Output recording file, default: recording.json')
   rec.add_argument('-a', '--auto', action='store_true', default=False,
                    help='Start recording immediately without waiting for the start key')
-  rec.add_argument('-k1', '--start-key', type=str, default='enter',
+  rec.add_argument('-k1', '--start-key', type=str, default=DEFAULT_START_KEY,
                    help='Key to press to start recording (global hotkey), default: enter; ignored with -a/--auto')
   rec.add_argument('-s', '--start-delay', type=float, default=0,
                    help='Buffer time(seconds) after start before recording begins, default: 0')
-  rec.add_argument('-k2', '--stop-key', type=str, default='esc',
+  rec.add_argument('-k2', '--stop-key', type=str, default=DEFAULT_STOP_KEY,
                    help='Key to stop recording (pyautogui key name), default: esc')
 
   rep = sub.add_parser('replay', help='Replay a recorded JSON file')
@@ -47,13 +48,13 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
                    help='Times to replay, 0 for infinite loop (required)')
   rep.add_argument('-a', '--auto', action='store_true', default=False,
                    help='Start replay immediately without waiting for the start key')
-  rep.add_argument('-k1', '--start-key', type=str, default='enter',
+  rep.add_argument('-k1', '--start-key', type=str, default=DEFAULT_START_KEY,
                    help='Key to press to start replay (global hotkey), default: enter; ignored with -a/--auto')
   rep.add_argument('-s', '--start-delay', type=float, default=0,
                    help='Buffer time(seconds) after start before replaying, default: 0')
   rep.add_argument('-w', '--wait', type=float, default=0,
                    help='Time(seconds) to wait between each replay round, default: 0')
-  rep.add_argument('-k2', '--stop-key', type=str, default='esc',
+  rep.add_argument('-k2', '--stop-key', type=str, default=DEFAULT_STOP_KEY,
                    help='Key to stop and end the replay (global hotkey), default: esc')
   rep.add_argument('-k3', '--pause-key', type=str, default=None,
                    help='Key to toggle pause/resume during the loop (global hotkey), default: disabled')
@@ -292,7 +293,7 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
         return True
       if pausedAt is None:
         pausedAt = time.monotonic()
-      time.sleep(0.02)
+      time.sleep(PAUSE_POLL_INTERVAL)
     if pausedAt is not None:
       t0 += time.monotonic() - pausedAt
       pausedAt = None
@@ -304,7 +305,7 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
     while time.monotonic() - t0 < deadline:
       if HandlePause() or stopControl.Stopped():
         return True
-      time.sleep(0.05)
+      time.sleep(POLL_INTERVAL)
     return False
 
   while True:
