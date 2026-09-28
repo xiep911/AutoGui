@@ -68,6 +68,13 @@ jobs:
       - name: Import check
         run: python -c "import Main; print('IMPORT_OK')"
 
+      - name: Version check
+        shell: bash
+        run: |
+          python Main.py --version
+          python Scripts/KeyPress.py -v
+          python Scripts/Recorder.py -v
+
       - name: Run KeyPress standalone
         shell: bash
         run: python Scripts/KeyPress.py -l f13 -r 1 -d 0 -a

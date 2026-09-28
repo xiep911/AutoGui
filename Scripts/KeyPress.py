@@ -12,15 +12,17 @@ import argparse
 
 import pyautogui
 from Library.Base import (DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, EXIT_ERROR,
-                          EXIT_INTERRUPTED, EXIT_OK, GetPresetNumber, LoadPreset, PauseControl,
-                          SavePreset, SleepResponsive, StopControl, ValidateDistinctHotkeys,
-                          ValidateHotkey, ValidatePauseKey, WaitResumeOrStop, WaitStartHotkey)
+                          EXIT_INTERRUPTED, EXIT_OK, VERSION, GetPresetNumber, LoadPreset,
+                          PauseControl, SavePreset, SleepResponsive, StopControl,
+                          ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey,
+                          WaitResumeOrStop, WaitStartHotkey)
 
 def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
   """参数解析初始化"""
   if parser is None:
     parser = argparse.ArgumentParser(description='Key press')
 
+  parser.add_argument('-v', '--version', action='version', version=f'AutoGui {VERSION}')
   parser.add_argument('file', nargs='?', type=str, default=None,
                       help='Preset JSON file to load (keys, delay, wait)')
   parser.add_argument('-n', '--num', type=int, help='Number of commands (interactive input mode)')

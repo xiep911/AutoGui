@@ -21,7 +21,7 @@ except ImportError as e:
   sys.exit(1)
 
 from Library.Base import (CanonKey, DEFAULT_START_KEY, DEFAULT_STOP_KEY, EXIT_ERROR,
-                          EXIT_INTERRUPTED, EXIT_OK, PAUSE_POLL_INTERVAL, POLL_INTERVAL,
+                          EXIT_INTERRUPTED, EXIT_OK, VERSION, PAUSE_POLL_INTERVAL, POLL_INTERVAL,
                           PauseControl, StartControl, StopControl, ToKeyName,
                           ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey, WaitStartHotkey)
 
@@ -29,9 +29,12 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
   """参数解析初始化"""
   if parser is None:
     parser = argparse.ArgumentParser(description='Record and replay mouse & keyboard operations')
+
+  parser.add_argument('-v', '--version', action='version', version=f'AutoGui {VERSION}')
   sub = parser.add_subparsers(dest='command', required=True, metavar='<command>')
 
   rec = sub.add_parser('record', help='Record user operations to a JSON file')
+  rec.add_argument('-v', '--version', action='version', version=f'AutoGui {VERSION}')
   rec.add_argument('-o', '--output', type=str, default='recording.json',
                    help='Output recording file, default: recording.json')
   rec.add_argument('-a', '--auto', action='store_true', default=False,
@@ -44,6 +47,7 @@ def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.Arg
                    help='Key to stop recording (pyautogui key name), default: esc')
 
   rep = sub.add_parser('replay', help='Replay a recorded JSON file')
+  rep.add_argument('-v', '--version', action='version', version=f'AutoGui {VERSION}')
   rep.add_argument('file', type=str, help='Recording JSON file')
   rep.add_argument('-r', '--repeat', type=int, required=True,
                    help='Times to replay, 0 for infinite loop (required)')

@@ -29,6 +29,9 @@ EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_INTERRUPTED = 130
 
+# 统一版本号（Main.py 与 Scripts/ 共用，发布时统一递增）
+VERSION = '1.0.0'
+
 try:
   from pynput import keyboard as pynput_keyboard
 except ImportError:

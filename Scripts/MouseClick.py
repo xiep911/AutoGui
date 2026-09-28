@@ -12,9 +12,10 @@ import argparse
 
 import pyautogui
 from Library.Base import (DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, EXIT_ERROR,
-                          EXIT_INTERRUPTED, EXIT_OK, GetPresetNumber, LoadPreset, PauseControl,
-                          SavePreset, SleepResponsive, StopControl, ValidateDistinctHotkeys,
-                          ValidateHotkey, ValidatePauseKey, WaitResumeOrStop, WaitStartHotkey)
+                          EXIT_INTERRUPTED, EXIT_OK, VERSION, GetPresetNumber, LoadPreset,
+                          PauseControl, SavePreset, SleepResponsive, StopControl,
+                          ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey,
+                          WaitResumeOrStop, WaitStartHotkey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -27,6 +28,7 @@ def ArgParseMouseClickInit(parser: argparse.ArgumentParser | None) -> argparse.A
   if parser is None:
     parser = argparse.ArgumentParser(description='Click mouse')
 
+  parser.add_argument('-v', '--version', action='version', version=f'AutoGui {VERSION}')
   parser.add_argument('file', nargs='?', type=str, default=None,
                       help='Preset JSON file to load (clicks, positions, delay, wait)')
   parser.add_argument('-n', '--num', type=int, help='Number of click commands (interactive input mode)')

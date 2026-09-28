@@ -23,6 +23,7 @@ pip install -r requirements.txt
 # 统一入口（推荐）：无参数进交互菜单，或带参数直传
 python Main.py
 python Main.py keypress -l a,d -r 0 -k1 q -k2 p -k3 space
+python Main.py --version  # 打印版本号
 
 # 各脚本独立运行
 python Scripts/KeyPress.py -l up,down,left,right -r 5

@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from Library.Base import DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY
+from Library.Base import DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, VERSION
 
 # 各功能 -> Scripts/ 下脚本 + 引导询问的参数模板（flag, 提示, 默认值, 类型）
 #  - flag 为 None 表示位置参数（如 replay 的 file）；类型 bool 时只追加开关（y/yes 设置，否则忽略）
@@ -170,7 +170,7 @@ def PrintFunctions() -> None:
 
 def MenuLoop() -> int:
   """交互菜单：选功能 → 引导填参 → 子进程执行 → 任务结束（真结束/自然结束/放弃）后回到菜单"""
-  print('AutoGui Main — 支持子进程无限循环 + 开始/暂停/结束三态热键')
+  print(f'AutoGui Main v{VERSION} — 支持子进程无限循环 + 开始/暂停/结束三态热键')
   while True:
     print()
     PrintFunctions()
@@ -207,8 +207,12 @@ def main() -> int:
   argv = sys.argv[1:]
   if not argv:
     return MenuLoop()
+  if argv[0] in ('-v', '--version'):
+    print(f'AutoGui {VERSION}')
+    return 0
   if argv[0] in ('-h', '--help'):
     print('用法: python Main.py [功能] [脚本参数...]   （无参数时进入交互菜单）')
+    print('  -v/--version  打印版本号')
     print('功能列表:')
     PrintFunctions()
     return 0
