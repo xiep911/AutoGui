@@ -122,11 +122,39 @@ def AskArgs(spec: dict) -> list[str]:
   return argv
 
 
+def RunScriptInProcess(spec: dict, args: list[str]) -> int:
+  """frozen（PyInstaller onefile）模式下无独立解释器，于当前进程运行 Scripts 脚本。
+
+  runpy 以 run_name='__main__' 运行，保留脚本的 __main__ 入口语义；argparse 读 sys.argv，
+  需临时替换为脚本视角的 argv。
+  """
+  import runpy
+  script = ScriptPath(spec['script'])
+  saved_argv = sys.argv
+  sys.argv = [script, *spec['prefix'], *args]
+  try:
+    runpy.run_path(script, run_name='__main__')
+    return 0
+  except SystemExit as e:
+    return e.code if isinstance(e.code, int) else 1
+  except OSError as e:
+    print(f'Error: {e}')
+    return 1
+  except KeyboardInterrupt:
+    print('\nTask interrupted.')
+    return 130
+  finally:
+    sys.argv = saved_argv
+
+
 def RunFunction(name: str, args: list[str]) -> int:
   """在子进程中执行选中脚本并透传参数（继承 stdio，子进程 input()/热键打印照常显示）"""
   spec = _FUNCTIONS[name]
   command = [sys.executable, ScriptPath(spec['script']), *spec['prefix'], *args]
   print('> ' + ' '.join(command))
+  if getattr(sys, 'frozen', False):
+    # PyInstaller 单文件打包后 sys.executable 即本程序，子进程方案失效，改为进程内运行
+    return RunScriptInProcess(spec, args)
   try:
     return subprocess.run(command).returncode
   except KeyboardInterrupt:
