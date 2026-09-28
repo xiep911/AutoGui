@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build executable
+        # Scripts/ 由 Main.py 按路径子进程启动，需作为数据文件随包；Library 被 import 由 PyInstaller 自动收集
+        run: pyinstaller --onefile --name AutoGui --add-data "Scripts:Scripts" Main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: AutoGui-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: AutoGui-windows-latest
+          path: dist/
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: AutoGui-ubuntu-latest
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
