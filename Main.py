@@ -6,7 +6,11 @@ import os
 import subprocess
 import sys
 
-from Library.Base import DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, VERSION
+# 常量来自 Include 数据层（__all__ 白名单限定，import * 不引入多余内容）
+from Include.Base import *  # noqa: F403
+# 导入整个 Library
+from Library.Base import *  # noqa: F403
+from Library.Runner import *  # noqa: F403
 
 # 各功能 -> Scripts/ 下脚本 + 引导询问的参数模板（flag, 提示, 默认值, 类型）
 #  - flag 为 None 表示位置参数（如 replay 的 file）；类型 bool 时只追加开关（y/yes 设置，否则忽略）

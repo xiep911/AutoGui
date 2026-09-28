@@ -10,12 +10,15 @@ pip install -r requirements.txt
 
 ## 目录结构
 
-- `Main.py` — 统一入口：交互菜单或 CLI 直传，子进程方式调度下面脚本
-- `Scripts/` — 三个独立脚本（可单独运行，也可被 Main.py 调度）：
+- `Main.py` — 统一入口：交互菜单或 CLI 直传，子进程方式调度下面脚本；功能列表与参数引导模板动态发现自各脚本的 `ArgParseInit` argparse 定义（加参数零同步）
+- `Scripts/` — 三个独立脚本（可单独运行，也可被 Main.py 调度，仅含 argparse 与组装）：
   - `KeyPress.py` — 键盘按键批量/循环执行
   - `MouseClick.py` — 鼠标点击批量/循环执行
   - `Recorder.py` — 录制 / 回放真实鼠标键盘操作
-- `Library/Base.py` — 公共代码：pynput 全局热键（开始 / 暂停 / 结束）、按键名归一化与校验、参数预设存取
+- `Include/Base.py` — 数据定义层（零依赖）：退出码、版本号、热键/间隔默认值、按键名归一表
+- `Library/` — 公共实现层，`__all__` 白名单仅导出脚本直接使用的公开 API，内部实现以 `_` 前缀私有（脚本与 Main 用 `import *` 取用）：
+  - `Base.py` — 共享 API：按键名归一（`CanonKey`）、参数预设存取（`LoadPreset` / `SavePreset` / `GetPresetNumber`）
+  - `Runner.py` — 执行层：`RunConfig` 参数打包、公共 argparse 与 `GuardMain`、统一循环调度、`RunPress` / `RunClick` / `Record` / `Replay`；全局热键控制、校验、分片睡眠、键转换等内部实现内聚于此（`_` 前缀私有）
 
 ## 快速示例
 

@@ -34,7 +34,7 @@ jobs:
 
       # 1. 语法检查
       - name: Syntax check
-        run: python -m py_compile Main.py Library/Base.py Scripts/KeyPress.py Scripts/MouseClick.py Scripts/Recorder.py
+        run: python -m py_compile Main.py Include/Base.py Library/Base.py Library/Runner.py Scripts/KeyPress.py Scripts/MouseClick.py Scripts/Recorder.py
 
       # 2. 导入/运行测试 (跳过):
       #    a. pyautogui 在 Linux import 时即连接 X display (runner 无桌面跑不了)
@@ -60,13 +60,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
-      # 1. 语法检查
+      # 1. 语法检查（Windows runner 的 pwsh 不做外部命令参数 glob，显式列全文件）
       - name: Syntax check
-        run: python -m py_compile Main.py Library/Base.py Scripts/KeyPress.py Scripts/MouseClick.py Scripts/Recorder.py
+        run: python -m py_compile Main.py Include/Base.py Library/Base.py Library/Runner.py Scripts/KeyPress.py Scripts/MouseClick.py Scripts/Recorder.py
 
       # 2. 导入/运行测试
       - name: Import check
         run: python -c "import Main; print('IMPORT_OK')"
+
+      # 2b. 导出白名单守护：模拟脚本的 import *，断言不引入外部依赖/包名（各模块 __all__ 是唯一白名单）
+      # 注：值含冒号+空格，须用块标量避免 YAML 解析为 mapping
+      - name: Export whitelist check
+        run: >-
+          python -c "g={}; exec('from Include.Base import *\nfrom Library.Base import *\nfrom Library.Runner import *', g); leaked=[n for n in g if n in ('pyautogui','time','json','os','threading','sys','pynput','argparse','dataclasses','Library','Include','Base','Runner')]; assert not leaked, 'unexpected exports: %s' % leaked; print('EXPORT_OK')"
 
       - name: Version check
         shell: bash
