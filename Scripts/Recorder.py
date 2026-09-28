@@ -20,8 +20,9 @@ except ImportError as e:
   print('Run: pip install -r requirements.txt')
   sys.exit(1)
 
-from Library.Base import (CanonKey, DEFAULT_START_KEY, DEFAULT_STOP_KEY, PAUSE_POLL_INTERVAL,
-                          POLL_INTERVAL, PauseControl, StartControl, StopControl, ToKeyName,
+from Library.Base import (CanonKey, DEFAULT_START_KEY, DEFAULT_STOP_KEY, EXIT_ERROR,
+                          EXIT_INTERRUPTED, EXIT_OK, PAUSE_POLL_INTERVAL, POLL_INTERVAL,
+                          PauseControl, StartControl, StopControl, ToKeyName,
                           ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey, WaitStartHotkey)
 
 def ArgParseRecorderInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
@@ -339,7 +340,7 @@ def Replay(recFile: str, repeat: int, autoStart: bool, startKey: str, startDelay
   else:
     print(f'Replay finished: {roundCount} round(s)')
 
-def main() -> None:
+def main() -> int:
   """主函数"""
   try:
     argParse = ArgParseRecorderInit(None)
@@ -353,8 +354,11 @@ def main() -> None:
              args.speed, CanonKey(args.stop_key.lower()), pauseKey)
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
+    return EXIT_INTERRUPTED
   except Exception as e:
     print(f'Error: {e}')
+    return EXIT_ERROR
+  return EXIT_OK
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

@@ -24,6 +24,11 @@ POLL_INTERVAL = 0.05
 # 暂停冻结调度时钟时的细粒度轮询间隔（秒），Recorder 回放专用
 PAUSE_POLL_INTERVAL = 0.02
 
+# 统一进程退出码（Scripts/ 与 Main.py 共用，供 CLI 与 CI 区分成功/失败/用户中断）
+EXIT_OK = 0
+EXIT_ERROR = 1
+EXIT_INTERRUPTED = 130
+
 try:
   from pynput import keyboard as pynput_keyboard
 except ImportError:

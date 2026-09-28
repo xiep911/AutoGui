@@ -11,10 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 
 import pyautogui
-from Library.Base import (DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, GetPresetNumber,
-                          LoadPreset, PauseControl, SavePreset, SleepResponsive, StopControl,
-                          ValidateDistinctHotkeys, ValidateHotkey, ValidatePauseKey,
-                          WaitResumeOrStop, WaitStartHotkey)
+from Library.Base import (DEFAULT_DELAY, DEFAULT_START_KEY, DEFAULT_STOP_KEY, EXIT_ERROR,
+                          EXIT_INTERRUPTED, EXIT_OK, GetPresetNumber, LoadPreset, PauseControl,
+                          SavePreset, SleepResponsive, StopControl, ValidateDistinctHotkeys,
+                          ValidateHotkey, ValidatePauseKey, WaitResumeOrStop, WaitStartHotkey)
 
 CLICK_OPTION = {
   1: pyautogui.click,
@@ -227,8 +227,11 @@ def main():
     RunClick(clickList, positionList, args.start_delay, startKey, args.repeat, delay, wait, args.stop_key.lower(), pauseKey)
   except KeyboardInterrupt:
     print('\nInterrupted by user.')
+    return EXIT_INTERRUPTED
   except Exception as e:
     print(f'Error: {e}')
+    return EXIT_ERROR
+  return EXIT_OK
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())
