@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""键盘按键（-l 列表 / -r 重复 / 三态热键）。"""
+
 import os
 import sys
 # 允许 Scripts/ 下脚本被直接运行时不破坏 Library 导入（repo 根目录入 sys.path）
@@ -11,12 +13,12 @@ import argparse
 
 import pyautogui
 # 公共逻辑全部在 Library/Include（各模块 __all__ 白名单限定，import * 不引入多余内容）
-from Include.Base import *  # noqa: F403  常量（DEFAULT_*/EXIT_*/VERSION）
-from Library.Base import *  # noqa: F403  键转换/热键/预设
-from Library.Runner import *  # noqa: F403  RunConfig/调度/GuardMain
+from Include.Base import *  # noqa: F403
+from Library.Base import *  # noqa: F403
+from Library.Runner import *  # noqa: F403
 
-def ArgParseKeyPressInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
-  """参数解析初始化"""
+def ArgParseInit(parser: argparse.ArgumentParser | None) -> argparse.ArgumentParser:
+  """参数解析初始化（Main 动态发现契约：所有脚本统一导出此函数）"""
   if parser is None:
     parser = argparse.ArgumentParser(description='Key press')
 
@@ -69,7 +71,7 @@ def GetKeyList(num: int) -> list[str]:
 
 def main() -> int:
   """主函数"""
-  argParse = ArgParseKeyPressInit(None)
+  argParse = ArgParseInit(None)
   args = argParse.parse_args()
   ArgCheckKeyPress(args)
   # 生成按键列表：预设文件 > -l 列表 > 交互输入
