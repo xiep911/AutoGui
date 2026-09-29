@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""数据定义层：常量与按键名归一数据（零依赖，供 Library 与脚本引用）。"""
+
 # 未指定 -d 且无预设时的每命令间隔（秒）
 DEFAULT_DELAY = 0.1
 
@@ -20,7 +22,7 @@ EXIT_ERROR = 1
 EXIT_INTERRUPTED = 130
 
 # 统一版本号（Main.py 与 Scripts/ 共用，发布时统一递增）
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 # pyautogui 同一键有多种写法 -> 归一到同一形式（用于停止键/停止录制键匹配）
 KEY_ALIASES = {
